@@ -1,0 +1,5 @@
+__pycache__/
+*.png
+*.json
+sts_models/*
+!sts_models/.gitkeep
