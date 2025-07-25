@@ -150,6 +150,12 @@ def main():
     train_parser.add_argument('--reward-function', type=str, default='simple', 
                             choices=['simple', 'comprehensive', 'sparse', 'shaped'],
                             help='Reward function to use')
+    train_parser.add_argument('--wandb', action='store_true', default=True, help='Enable wandb tracking')
+    train_parser.add_argument('--no-wandb', dest='wandb', action='store_false', help='Disable wandb tracking')
+    train_parser.add_argument('--wandb-project', type=str, default='sts-neural-agent', help='Wandb project name')
+    train_parser.add_argument('--wandb-entity', type=str, help='Wandb entity (username/team)')
+    train_parser.add_argument('--wandb-name', type=str, help='Wandb run name')
+    train_parser.add_argument('--wandb-tags', type=str, nargs='+', help='Wandb tags for organizing runs')
     
     # Evaluation command
     eval_parser = subparsers.add_parser('eval', help='Evaluate a trained agent')
@@ -172,7 +178,12 @@ def main():
             'learning_rate': args.lr,
             'batch_size': args.batch_size,
             'hidden_size': args.hidden_size,
-            'reward_function': args.reward_function
+            'reward_function': args.reward_function,
+            'use_wandb': args.wandb,
+            'wandb_project': args.wandb_project,
+            'wandb_entity': args.wandb_entity,
+            'wandb_run_name': args.wandb_name,
+            'wandb_tags': args.wandb_tags
         }
         train_agent(args.config, **train_kwargs)
     

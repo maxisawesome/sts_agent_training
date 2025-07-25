@@ -12,10 +12,18 @@ import torch.optim as optim
 import numpy as np
 import sys
 import os
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 import time
 from dataclasses import dataclass
 import json
+
+# Weights & Biases for experiment tracking
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
+    print("Warning: wandb not installed. Install with: pip install wandb")
 
 # Add the sts_lightspeed directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sts_lightspeed'))
@@ -54,6 +62,13 @@ class TrainingConfig:
     max_episode_length: int = 1000
     reward_function: str = 'simple'  # Options: 'simple', 'comprehensive', 'sparse', 'shaped'
     
+    # Weights & Biases tracking
+    use_wandb: bool = True
+    wandb_project: str = 'sts-neural-agent'
+    wandb_entity: Optional[str] = None  # Your wandb username/team
+    wandb_run_name: Optional[str] = None  # Auto-generated if None
+    wandb_tags: List[str] = None  # Tags for organizing runs
+    
     def save(self, filepath: str):
         """Save configuration to JSON file."""
         with open(filepath, 'w') as f:
@@ -78,13 +93,20 @@ class PPOTrainer:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"Using device: {self.device}")
         
-        # Initialize network
+        # Initialize network FIRST (needed for wandb.watch)
         self.actor_critic = STSActorCritic(
             obs_size=412,
             hidden_size=config.hidden_size,
             action_size=config.action_size,
             num_layers=config.num_layers
         ).to(self.device)
+        
+        # Initialize Weights & Biases AFTER network creation
+        self.wandb_run = None
+        if config.use_wandb and WANDB_AVAILABLE:
+            self._init_wandb()
+        elif config.use_wandb and not WANDB_AVAILABLE:
+            print("Warning: wandb tracking requested but wandb not available")
         
         # Initialize optimizer
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=config.learning_rate)
@@ -104,6 +126,105 @@ class PPOTrainer:
         
         # Create model save directory
         os.makedirs(config.model_save_path, exist_ok=True)
+    
+    def _init_wandb(self):
+        """Initialize Weights & Biases tracking."""
+        try:
+            # Generate run name if not provided
+            run_name = self.config.wandb_run_name
+            if run_name is None:
+                import datetime
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                run_name = f"sts-{self.config.reward_function}-{timestamp}"
+            
+            # Initialize wandb
+            self.wandb_run = wandb.init(
+                project=self.config.wandb_project,
+                entity=self.config.wandb_entity,
+                name=run_name,
+                tags=self.config.wandb_tags or [],
+                config=self.config.__dict__,
+                reinit=True
+            )
+            
+            # Watch the model for gradient tracking
+            try:
+                wandb.watch(self.actor_critic, log_freq=100, log="all")
+            except Exception as e:
+                print(f"⚠️  Failed to set up wandb model watching: {e}")
+                # Continue without model watching
+            
+            print(f"✅ Initialized wandb tracking: {self.wandb_run.url}")
+            
+        except Exception as e:
+            print(f"⚠️  Failed to initialize wandb: {e}")
+            self.wandb_run = None
+    
+    def _log_to_wandb(self, **kwargs):
+        """Log metrics to Weights & Biases."""
+        if not self.wandb_run:
+            return
+        
+        try:
+            # Basic training metrics
+            log_dict = {
+                "training/update": kwargs['update_count'],
+                "training/episodes": kwargs['total_episodes'],
+                "training/avg_reward": kwargs['avg_reward'],
+                "training/avg_episode_length": kwargs['avg_length'],
+                "training/policy_loss": kwargs['avg_policy_loss'],
+                "training/value_loss": kwargs['avg_value_loss'],
+                "training/entropy": kwargs['avg_entropy'],
+                "training/collection_time": kwargs['collection_time'],
+                "training/update_time": kwargs['update_time'],
+                "training/fps": kwargs['total_episodes'] / (kwargs['collection_time'] + kwargs['update_time']),
+            }
+            
+            # Episode-specific metrics
+            recent_episodes = kwargs.get('recent_episodes', [])
+            if recent_episodes:
+                episode_rewards = [ep.total_reward for ep in recent_episodes]
+                episode_lengths = [ep.episode_length for ep in recent_episodes]
+                
+                log_dict.update({
+                    "episodes/reward_mean": np.mean(episode_rewards),
+                    "episodes/reward_std": np.std(episode_rewards),
+                    "episodes/reward_min": np.min(episode_rewards),
+                    "episodes/reward_max": np.max(episode_rewards),
+                    "episodes/length_mean": np.mean(episode_lengths),
+                    "episodes/length_std": np.std(episode_lengths),
+                })
+                
+                # Reward distribution histogram
+                wandb.log({"episodes/reward_distribution": wandb.Histogram(episode_rewards)})
+            
+            # Model statistics
+            if hasattr(self, 'actor_critic'):
+                total_params = sum(p.numel() for p in self.actor_critic.parameters())
+                trainable_params = sum(p.numel() for p in self.actor_critic.parameters() if p.requires_grad)
+                log_dict.update({
+                    "model/total_parameters": total_params,
+                    "model/trainable_parameters": trainable_params,
+                })
+            
+            # Performance metrics over time
+            if len(self.episode_rewards) > 1:
+                # Reward trend (simple moving average)
+                window = min(20, len(self.episode_rewards))
+                recent_rewards = self.episode_rewards[-window:]
+                log_dict["training/reward_trend"] = np.mean(recent_rewards)
+                
+                # Learning progress (improvement over time)
+                if len(self.episode_rewards) >= 100:
+                    early_rewards = np.mean(self.episode_rewards[:50])
+                    recent_rewards = np.mean(self.episode_rewards[-50:])
+                    improvement = recent_rewards - early_rewards
+                    log_dict["training/learning_progress"] = improvement
+            
+            wandb.log(log_dict)
+            
+        except Exception as e:
+            print(f"⚠️  Failed to log to wandb: {e}")
     
     def compute_advantages(self, experiences: List[Experience], gamma: float = 0.99, lam: float = 0.95) -> Tuple[np.ndarray, np.ndarray]:
         """Compute advantages using Generalized Advantage Estimation (GAE)."""
@@ -268,6 +389,7 @@ class PPOTrainer:
                 avg_value_loss = np.mean(self.value_losses[-10:]) if self.value_losses else 0
                 avg_entropy = np.mean(self.entropy_losses[-10:]) if self.entropy_losses else 0
                 
+                # Console logging
                 print(f"\n=== Update {update_count} | Episodes {total_episodes} ===")
                 print(f"Avg Reward (last 50): {avg_reward:.3f}")
                 print(f"Avg Length (last 50): {avg_length:.1f}")
@@ -276,6 +398,21 @@ class PPOTrainer:
                 print(f"Entropy: {avg_entropy:.6f}")
                 print(f"Collection Time: {collection_time:.2f}s")
                 print(f"Update Time: {update_time:.2f}s")
+                
+                # Wandb logging
+                if self.wandb_run:
+                    self._log_to_wandb(
+                        update_count=update_count,
+                        total_episodes=total_episodes,
+                        avg_reward=avg_reward,
+                        avg_length=avg_length,
+                        avg_policy_loss=avg_policy_loss,
+                        avg_value_loss=avg_value_loss,
+                        avg_entropy=avg_entropy,
+                        collection_time=collection_time,
+                        update_time=update_time,
+                        recent_episodes=episodes
+                    )
             
             # Save model
             if update_count % self.config.save_interval == 0:
@@ -284,6 +421,17 @@ class PPOTrainer:
         
         print(f"\nTraining completed! Total episodes: {total_episodes}")
         self.save_model("final_model.pt")
+        
+        # Final wandb logging
+        if self.wandb_run:
+            wandb.log({
+                "training/final_episodes": total_episodes,
+                "training/final_avg_reward": np.mean(self.episode_rewards[-50:]) if self.episode_rewards else 0,
+                "training/total_updates": update_count
+            })
+            # Save final model to wandb
+            wandb.save(os.path.join(self.config.model_save_path, "final_model.pt"))
+            wandb.finish()
     
     def save_model(self, filename: str):
         """Save the trained model."""
