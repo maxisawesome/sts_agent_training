@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # Main training service
+  sts-trainer:
+    build: .
+    container_name: sts-neural-trainer
+    
+    # GPU support (comment out for CPU-only)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    # Environment variables
+    environment:
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+    
+    # Volume mounts for persistence
+    volumes:
+      - ./sts_models:/app/sts_models
+      - ./logs:/app/logs
+      - ./wandb_cache:/app/wandb_cache
+      - ./configs:/app/configs
+    
+    # Keep container running
+    tty: true
+    stdin_open: true
+    
+    # Default command (can be overridden)
+    command: >
+      bash -c "
+        echo '🚀 STS Neural Agent Training Container Started'
+        echo 'GPU Available:' && python -c 'import torch; print(torch.cuda.is_available())'
+        echo 'Starting training...'
+        python train_sts_agent.py train --episodes 2000 --wandb --wandb-name docker-training
+      "
+  
+  # Jupyter service for interactive development
+  sts-jupyter:
+    build: .
+    container_name: sts-jupyter
+    ports:
+      - "8888:8888"
+    
+    # GPU support (comment out for CPU-only)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    environment:
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - JUPYTER_ENABLE_LAB=yes
+    
+    volumes:
+      - ./sts_models:/app/sts_models
+      - ./logs:/app/logs
+      - ./wandb_cache:/app/wandb_cache
+      - ./notebooks:/app/notebooks
+    
+    command: >
+      bash -c "
+        mkdir -p /app/notebooks
+        jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+      "
+    
+    profiles:
+      - jupyter  # Only start with specific profile
+
+  # CPU-only training service
+  sts-trainer-cpu:
+    build: .
+    container_name: sts-neural-trainer-cpu
+    
+    environment:
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - PYTHONUNBUFFERED=1
+    
+    volumes:
+      - ./sts_models:/app/sts_models
+      - ./logs:/app/logs
+      - ./wandb_cache:/app/wandb_cache
+      - ./configs:/app/configs
+    
+    tty: true
+    stdin_open: true
+    
+    command: >
+      bash -c "
+        echo '🚀 STS Neural Agent Training Container Started (CPU)'
+        echo 'Starting CPU training...'
+        python train_sts_agent.py train --episodes 1000 --wandb --wandb-name docker-cpu-training
+      "
+    
+    profiles:
+      - cpu  # Only start with specific profile

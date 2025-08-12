@@ -1,0 +1,41 @@
+# Simple Dockerfile for testing - CPU only with minimal dependencies
+FROM python:3.8-slim
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY . .
+
+# Build sts_lightspeed
+RUN cd sts_lightspeed && \
+    git submodule update --init --recursive && \
+    cmake -DPYTHON_EXECUTABLE=$(which python) . && \
+    make -j$(nproc) && \
+    cd .. && \
+    python -c "import sys; sys.path.insert(0, 'sts_lightspeed'); import slaythespire; print('✅ sts_lightspeed built successfully')"
+
+# Create directories for outputs
+RUN mkdir -p /app/sts_models /app/logs
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Default command
+CMD ["python", "train_sts_agent.py", "train", "--episodes", "10", "--no-wandb"]

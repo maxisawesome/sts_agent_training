@@ -1,0 +1,21 @@
+# STS Neural Agent - Python Dependencies
+# Core ML libraries
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+numpy>=1.21.0
+
+# Experiment tracking
+wandb>=0.15.0
+
+# Visualization and analysis
+matplotlib>=3.5.0
+seaborn>=0.11.0
+
+# Jupyter for interactive development (optional)
+jupyter>=1.0.0
+ipython>=8.0.0
+
+# Utilities
+tqdm>=4.60.0
+pyyaml>=6.0

@@ -1,0 +1,56 @@
+# Docker ignore file for STS Neural Agent
+
+# Python cache and temporary files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv
+env/
+venv/
+
+# Model outputs and logs
+sts_models/
+logs/
+wandb/
+wandb_cache/
+
+# Build artifacts
+sts_lightspeed/CMakeCache.txt
+sts_lightspeed/CMakeFiles/
+sts_lightspeed/Makefile
+sts_lightspeed/*.so
+sts_lightspeed/main
+sts_lightspeed/test
+sts_lightspeed/small-test
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation (keep README.md)
+*.md
+!README.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Pytest
+.pytest_cache/
+
+# Coverage
+.coverage
+htmlcov/
