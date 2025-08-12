@@ -4,3 +4,4 @@ __pycache__/
 sts_models/*
 !sts_models/.gitkeep
 wandb/
+*.log
