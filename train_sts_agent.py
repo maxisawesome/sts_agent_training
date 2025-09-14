@@ -11,7 +11,9 @@ import sys
 import os
 from datetime import datetime
 
-# Add the sts_lightspeed directory to the Python path
+# Temporary: will be fixed when proper packaging works
+import sys
+import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sts_lightspeed'))
 import slaythespire
 

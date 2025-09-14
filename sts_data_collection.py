@@ -16,8 +16,6 @@ from dataclasses import dataclass
 from collections import deque
 import random
 
-# Add the sts_lightspeed directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sts_lightspeed'))
 import slaythespire
 
 from sts_reward_functions import RewardFunctionManager

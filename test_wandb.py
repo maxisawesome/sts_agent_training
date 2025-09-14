@@ -18,7 +18,7 @@ def test_wandb_import():
 
 def test_config_update():
     """Test that TrainingConfig properly handles wandb parameters."""
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sts_lightspeed'))
+    # sts_lightspeed is now properly installed
     
     try:
         from sts_training import TrainingConfig

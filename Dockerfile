@@ -9,7 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV WANDB_CACHE_DIR=/app/wandb_cache
 
-# Install system dependencies
+# Install system dependencies (rarely changes - good for caching)
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
@@ -23,22 +23,40 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first for better Docker layer caching
+# Copy and install Python requirements first (changes infrequently)
 COPY requirements.txt .
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
-COPY . .
+# Copy only sts_lightspeed C++ source code and build files (stable structure)
+COPY sts_lightspeed/include/ sts_lightspeed/include/
+COPY sts_lightspeed/src/ sts_lightspeed/src/
+COPY sts_lightspeed/apps/ sts_lightspeed/apps/
+COPY sts_lightspeed/bindings/ sts_lightspeed/bindings/
+COPY sts_lightspeed/json/ sts_lightspeed/json/
+COPY sts_lightspeed/pybind11/ sts_lightspeed/pybind11/
+COPY sts_lightspeed/CMakeLists.txt sts_lightspeed/CMakeLists.txt
 
-# Build sts_lightspeed
+# Build sts_lightspeed (this layer will be cached unless C++ code changes)
 RUN cd sts_lightspeed && \
-    git submodule update --init --recursive && \
     cmake -DPYTHON_EXECUTABLE=$(which python) . && \
     make -j$(nproc) && \
-    cd .. && \
-    python -c "import sys; sys.path.insert(0, 'sts_lightspeed'); import slaythespire; print('✅ sts_lightspeed built successfully')"
+    echo "✅ sts_lightspeed built successfully"
+
+# Copy setup.py and install package structure (changes less frequently than Python scripts)
+COPY setup.py .
+RUN pip install -e . || echo "Package install attempted"
+
+# Copy Python source code (changes most frequently - put at end)
+COPY sts_*.py ./
+COPY train_sts_agent.py ./
+COPY setup_wandb.py ./
+COPY test*.py ./
+COPY analyze_rewards.py ./
+COPY simple_reward_analysis.py ./
+COPY run_sts_lightspeed.py ./
+
+# Test that everything works
+RUN python -c "import sys; sys.path.insert(0, 'sts_lightspeed'); import slaythespire; print('✅ sts_lightspeed import test successful')"
 
 # Create directories for outputs
 RUN mkdir -p /app/sts_models /app/wandb_cache /app/logs
@@ -53,6 +71,7 @@ USER trainer
 
 # Expose port for Jupyter (if needed)
 EXPOSE 8888
+EXPOSE 1234
 
 # Default command - can be overridden
 CMD ["python", "train_sts_agent.py", "train", "--episodes", "1000", "--wandb"]

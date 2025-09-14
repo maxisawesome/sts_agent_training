@@ -25,8 +25,6 @@ except ImportError:
     WANDB_AVAILABLE = False
     print("Warning: wandb not installed. Install with: pip install wandb")
 
-# Add the sts_lightspeed directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sts_lightspeed'))
 import slaythespire
 
 from sts_neural_network import STSActorCritic

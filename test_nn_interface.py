@@ -3,9 +3,6 @@ import sys
 import os
 import numpy as np
 
-# Add the sts_lightspeed directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sts_lightspeed'))
-
 import slaythespire
 
 def analyze_nn_interface():

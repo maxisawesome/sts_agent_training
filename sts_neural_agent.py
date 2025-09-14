@@ -13,8 +13,6 @@ import os
 from typing import Optional, List, Tuple, Any
 import random
 
-# Add the sts_lightspeed directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sts_lightspeed'))
 import slaythespire
 
 from sts_neural_network import STSActorCritic

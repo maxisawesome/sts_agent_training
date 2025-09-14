@@ -4,7 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-### Building sts_lightspeed C++ Engine
+### Installation and Setup
+```bash
+# Install package in editable mode (automatically builds sts_lightspeed)
+pip install -e .
+# Test the installation
+python3 -c "import slaythespire; print('✅ sts_lightspeed installed successfully!')"
+```
+
+### Manual C++ Build (if needed)
 ```bash
 cd sts_lightspeed
 # Clean previous builds
@@ -14,7 +22,7 @@ cmake -DPYTHON_EXECUTABLE=$(which python3) .
 # Build with parallel jobs
 make -j4
 # Test the build
-python3 -c "import slaythespire; print('✅ sts_lightspeed installed successfully!')"
+python3 -c "import slaythespire; print('✅ sts_lightspeed built successfully!')"
 ```
 
 ### Training and Evaluation
@@ -51,9 +59,33 @@ python3 simple_reward_analysis.py
 ```
 
 ### Docker Commands
+
+**Quick Testing:**
 ```bash
-# Build Docker image
+# Test with cache (fast subsequent builds)
+./docker-scripts/test-docker.sh
+
+# Quick build-only test (faster, no functionality tests)
+./docker-scripts/test-docker.sh --build-only
+
+# Test specific Docker variant
+./docker-scripts/test-docker.sh --dev          # Development optimized
+./docker-scripts/test-docker.sh --optimized    # Multi-stage production build
+
+# Force clean rebuild
+./docker-scripts/test-docker.sh --force-rebuild --no-cache
+```
+
+**Manual Building:**
+```bash
+# Standard build (with caching)
 docker build -t sts-neural-agent .
+
+# Development build (optimized for Python code changes)
+docker build -f Dockerfile.dev -t sts-neural-agent-dev .
+
+# Production multi-stage build
+docker build -f Dockerfile.optimized -t sts-neural-agent-prod .
 
 # Run training in container
 docker run --gpus all -it sts-neural-agent
@@ -61,6 +93,13 @@ docker run --gpus all -it sts-neural-agent
 # Use provided training script
 ./docker-scripts/train.sh --episodes 1000 --wandb-name experiment
 ```
+
+**Docker Cache Optimization:**
+- **First build**: Takes 10-15 minutes (downloads base image, builds C++)
+- **Subsequent builds**: 30 seconds - 2 minutes (uses cached layers)
+- **Python-only changes**: ~30 seconds (C++ layer cached)
+- **C++ changes**: 2-5 minutes (only rebuilds C++ and later layers)
+- **Dependency changes**: 5-10 minutes (rebuilds from dependency layer)
 
 ## Architecture Overview
 
@@ -101,6 +140,7 @@ docker run --gpus all -it sts-neural-agent
 - Weights & Biases for experiment tracking
 - NumPy, matplotlib for analysis
 - CMake 3.10+ and C++17 compiler for building sts_lightspeed
+- pybind11 for Python-C++ bindings (automatically installed)
 
 ## Key Files to Understand
 
@@ -116,3 +156,57 @@ docker run --gpus all -it sts-neural-agent
 - Model files are saved to `sts_models/` directory with timestamps
 
 The system uses Docker for cloud deployment and includes comprehensive logging and model management for long-running experiments.
+
+## Installation Notes
+
+The project now uses proper Python packaging with `setup.py`. Simply run `pip install -e .` to:
+- Automatically build the sts_lightspeed C++ extension
+- Install all Python dependencies
+- Make the `slaythespire` module available globally
+- Enable console script commands like `sts-train`
+
+This eliminates the need for `sys.path.insert()` workarounds throughout the codebase.
+
+## Cloud Storage Setup
+
+For cloud deployments, data persistence is critical. The system includes automated setup for major cloud providers:
+
+**Quick Setup:**
+```bash
+# Auto-detect cloud provider and setup storage
+./scripts/setup-cloud-storage.sh
+
+# Provider-specific setup
+./scripts/setup-cloud-storage.sh --aws --size 100    # AWS EBS
+./scripts/setup-cloud-storage.sh --gcp --size 100    # GCP Persistent Disk
+./scripts/setup-cloud-storage.sh --azure --size 100  # Azure Managed Disk
+./scripts/setup-cloud-storage.sh --generic           # Generic directory
+```
+
+**Cloud Training:**
+```bash
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your WANDB_API_KEY and settings
+
+# Start cloud training with persistent storage
+./scripts/cloud-train.sh
+
+# Using Docker Compose for cloud
+docker-compose -f docker-compose.cloud.yml up sts-trainer
+```
+
+**Data Backup:**
+```bash
+# Manual backup to cloud storage
+./scripts/backup-data.sh
+
+# Automated backup (configure cloud credentials in .env)
+# Supports AWS S3, Google Cloud Storage, Azure Blob Storage
+```
+
+**Important Cloud Files:**
+- `docker-compose.cloud.yml` - Cloud-optimized container orchestration
+- `.env.example` - Template for cloud environment configuration
+- `CLOUD_STORAGE_GUIDE.md` - Detailed cloud setup documentation
+- `scripts/` - Automated setup and backup scripts

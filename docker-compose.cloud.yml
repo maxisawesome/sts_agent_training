@@ -1,0 +1,158 @@
+# Docker Compose for Cloud Training
+# Optimized for persistent storage and long-running training jobs
+
+version: '3.8'
+
+services:
+  # Main training service
+  sts-trainer:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: sts-trainer
+    restart: unless-stopped
+    volumes:
+      # Persistent data volumes (configure DATA_PATH in .env)
+      - ${DATA_PATH}/models:/app/sts_models
+      - ${DATA_PATH}/logs:/app/logs
+      - ${DATA_PATH}/wandb:/app/wandb
+      - ${DATA_PATH}/configs:/app/configs
+      # Optional: Mount backup scripts
+      - ./scripts:/app/scripts:ro
+    environment:
+      # Wandb configuration
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - WANDB_CACHE_DIR=/app/wandb
+      - WANDB_PROJECT=${WANDB_PROJECT:-sts-neural-agent}
+      # Training configuration
+      - EPISODES=${EPISODES:-2000}
+      - REWARD_FUNCTION=${REWARD_FUNCTION:-comprehensive}
+      - HIDDEN_SIZE=${HIDDEN_SIZE:-512}
+      - BATCH_SIZE=${BATCH_SIZE:-64}
+      - LEARNING_RATE=${LEARNING_RATE:-3e-4}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: >
+      python train_sts_agent.py train 
+        --episodes ${EPISODES:-2000}
+        --reward-function ${REWARD_FUNCTION:-comprehensive}
+        --hidden-size ${HIDDEN_SIZE:-512}
+        --batch-size ${BATCH_SIZE:-64}
+        --lr ${LEARNING_RATE:-3e-4}
+        --wandb
+        --wandb-name ${EXPERIMENT_NAME:-cloud-training}
+        --wandb-tags cloud production ${EXTRA_TAGS:-}
+
+  # Development/debugging service
+  sts-dev:
+    build: 
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: sts-dev
+    profiles: ["dev"]
+    volumes:
+      - ${DATA_PATH}/models:/app/sts_models
+      - ${DATA_PATH}/logs:/app/logs
+      - ${DATA_PATH}/wandb:/app/wandb
+      # Mount source code for development
+      - .:/app/src:ro
+    environment:
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - WANDB_CACHE_DIR=/app/wandb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: python train_sts_agent.py train --episodes 100 --no-wandb
+    
+  # Jupyter notebook for analysis
+  sts-jupyter:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: sts-jupyter
+    profiles: ["jupyter"]
+    ports:
+      - "${JUPYTER_PORT:-8888}:8888"
+    volumes:
+      - ${DATA_PATH}/models:/app/sts_models
+      - ${DATA_PATH}/logs:/app/logs
+      - ${DATA_PATH}/wandb:/app/wandb
+      - ./notebooks:/app/notebooks
+    environment:
+      - WANDB_API_KEY=${WANDB_API_KEY}
+      - JUPYTER_ENABLE_LAB=yes
+    command: >
+      jupyter lab 
+        --ip=0.0.0.0 
+        --port=8888 
+        --no-browser 
+        --allow-root
+        --NotebookApp.token=${JUPYTER_TOKEN:-}
+        --NotebookApp.password=${JUPYTER_PASSWORD:-}
+
+  # Model evaluation service
+  sts-eval:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: sts-eval
+    profiles: ["eval"]
+    volumes:
+      - ${DATA_PATH}/models:/app/sts_models:ro
+      - ${DATA_PATH}/logs:/app/logs
+    environment:
+      - WANDB_API_KEY=${WANDB_API_KEY}
+    command: python train_sts_agent.py eval ${MODEL_PATH:-sts_models/final_model.pt} --games ${EVAL_GAMES:-100}
+
+  # Monitoring service (optional)
+  sts-monitor:
+    image: prom/node-exporter:latest
+    container_name: sts-monitor
+    profiles: ["monitoring"]
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    restart: unless-stopped
+
+# Named volumes for easier management
+volumes:
+  sts_models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH}/models
+  sts_logs:
+    driver: local  
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH}/logs
+  sts_wandb:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH}/wandb
+
+# Networks
+networks:
+  default:
+    driver: bridge

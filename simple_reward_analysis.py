@@ -8,8 +8,6 @@ Quick analysis of reward functions without full episode simulation.
 import sys
 import os
 
-# Add the sts_lightspeed directory to the Python path  
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'sts_lightspeed'))
 import slaythespire
 
 from sts_reward_functions import RewardFunctionManager
