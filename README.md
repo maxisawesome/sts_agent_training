@@ -208,6 +208,43 @@ docker build -t sts-neural-agent .
 docker run --gpus all -it sts-neural-agent
 ```
 
+
+### Starting up on Prime Intellect
+
+choose ubunutu and deploy on PI
+
+install docker.io:
+
+```jsx
+sudo apt update
+sudo apt install docker.io
+sudo usermod -aG docker $USER
+```
+
+Restart terminal instance
+
+install nvidia-toolkit:
+
+```jsx
+distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
+curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
+curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
+
+sudo apt update
+sudo apt install -y nvidia-container-toolkit
+
+sudo systemctl restart docker
+```
+
+Run instance: 
+
+`docker run -it --gpus all --entrypoint /bin/bash mmarion538/sts-neural-agent:latest`
+
+`export WANDB_API_KEY="ur-api-key-here"` 
+
+`python train_sts_agent.py train --episodes 1000 --wandb`
+
+
 ## 📊 Training Options
 
 ### Basic Usage
