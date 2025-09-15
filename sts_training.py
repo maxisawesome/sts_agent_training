@@ -226,7 +226,7 @@ class PPOTrainer:
     
     def compute_advantages(self, experiences: List[Experience], gamma: float = 0.99, lam: float = 0.95) -> Tuple[np.ndarray, np.ndarray]:
         """Compute advantages using Generalized Advantage Estimation (GAE)."""
-        states = torch.FloatTensor([exp.state for exp in experiences]).to(self.device)
+        states = torch.FloatTensor(np.array([exp.state for exp in experiences])).to(self.device)
         rewards = np.array([exp.reward for exp in experiences])
         dones = np.array([exp.done for exp in experiences])
         
