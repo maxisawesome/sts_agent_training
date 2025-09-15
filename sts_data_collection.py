@@ -155,6 +155,7 @@ class STSDataCollector:
         self.env = env_wrapper
         self.buffer = buffer
         self.episode_count = 0
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     def collect_random_episodes(self, num_episodes: int) -> List[Episode]:
         """Collect episodes using random actions (for initial data)."""
@@ -215,7 +216,7 @@ class STSDataCollector:
         with torch.no_grad():
             while not self.env.done and step_count < 1000:
                 # Convert observation to tensor
-                obs_tensor = torch.FloatTensor(obs).unsqueeze(0)
+                obs_tensor = torch.FloatTensor(obs).unsqueeze(0).to(self.device)
                 
                 # Get action probabilities from policy
                 if hasattr(policy_network, 'forward'):
@@ -236,7 +237,7 @@ class STSDataCollector:
                 # Sample action
                 action_dist = torch.distributions.Categorical(action_probs)
                 action = action_dist.sample().item()
-                log_prob = action_dist.log_prob(torch.tensor(action)).item()
+                log_prob = action_dist.log_prob(torch.tensor(action).to(self.device)).item()
                 
                 next_obs, reward, done, info = self.env.step(action)
                 
