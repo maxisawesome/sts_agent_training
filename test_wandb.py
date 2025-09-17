@@ -3,9 +3,6 @@
 Quick test of wandb integration with STS training system.
 """
 
-import sys
-import os
-
 def test_wandb_import():
     """Test if wandb can be imported."""
     try:
