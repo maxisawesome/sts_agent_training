@@ -5,9 +5,6 @@ Simple Reward Function Analysis
 Quick analysis of reward functions without full episode simulation.
 """
 
-import sys
-import os
-
 import slaythespire
 
 from sts_reward_functions import RewardFunctionManager
