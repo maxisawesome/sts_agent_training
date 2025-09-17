@@ -126,6 +126,65 @@ class ComprehensiveReward(BaseRewardFunction):
         self.episode_rewards.append(total_reward)
         
         return total_reward
+class AdvancementReward(BaseRewardFunction):
+    """Reward function specifically tailored towards attacking and moving up floors."""
+    
+    def __init__(self, 
+                 hp_weight: float = 1.0,
+                 floor_weight: float = 0.5,
+                 survival_bonus: float = 0.01,
+                 death_penalty: float = -100.0,
+                 win_bonus: float = 100.0):
+        super().__init__("Advancement")
+        self.hp_weight = hp_weight
+        self.floor_weight = floor_weight
+        self.survival_bonus = survival_bonus
+        self.death_penalty = death_penalty
+        self.win_bonus = win_bonus
+    
+    def calculate_reward(self, game_context: slaythespire.GameContext, action: int, done: bool) -> float:
+        reward = 0.0
+        
+        # Health-based reward (encourage HP preservation)
+        # Maximum: 1.0
+        hp_ratio = game_context.cur_hp / max(game_context.max_hp, 1)
+        hp_reward = hp_ratio * self.hp_weight
+        
+        # Floor progression reward (encourage advancing through the spire)
+        # Maximum: floor_num * .5
+        floor_reward = game_context.floor_num * self.floor_weight
+        
+        # Base survival bonus
+        # base is .01
+        survival_reward = self.survival_bonus
+        
+        # Calculate delta rewards if we have previous state
+        if self.previous_state is not None:
+            # Reward for gaining HP
+            hp_delta = game_context.cur_hp - self.previous_state.cur_hp
+            if hp_delta > 0:
+                reward += hp_delta * 0.5  # Bonus for healing
+            
+            # Reward for floor progression
+            floor_delta = game_context.floor_num - self.previous_state.floor_num
+            if floor_delta > 0:
+                reward += floor_delta * 2.0  # Good bonus for advancing floors
+        
+        # Terminal rewards
+        if done:
+            if game_context.cur_hp <= 0:
+                reward += self.death_penalty  # Large penalty for dying
+            elif game_context.floor_num >= 50:  # Approximate win condition
+                reward += self.win_bonus  # Large bonus for winning
+        
+        total_reward = hp_reward + gold_reward + floor_reward + survival_reward + reward
+        
+        # Store state for next calculation
+        self.previous_state = game_context
+        self.episode_rewards.append(total_reward)
+        
+        return total_reward
+
 
 class SparseReward(BaseRewardFunction):
     """Sparse reward that only gives feedback at key moments."""
