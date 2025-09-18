@@ -19,11 +19,11 @@ class STSPolicyNetwork(nn.Module):
     """
     Policy network for Slay the Spire agent.
     
-    Takes the 412-dimensional game state observation and outputs action probabilities.
+    Takes the 550-dimensional game state observation and outputs action probabilities.
     Uses separate heads for different action types (combat vs meta-game decisions).
     """
     
-    def __init__(self, obs_size=412, hidden_size=512, num_layers=3):
+    def __init__(self, obs_size=550, hidden_size=512, num_layers=3):
         super(STSPolicyNetwork, self).__init__()
         
         self.obs_size = obs_size
@@ -56,10 +56,10 @@ class STSValueNetwork(nn.Module):
     """
     Value network for Slay the Spire agent.
     
-    Takes the 412-dimensional game state observation and outputs a state value estimate.
+    Takes the 550-dimensional game state observation and outputs a state value estimate.
     """
     
-    def __init__(self, obs_size=412, hidden_size=512, num_layers=3):
+    def __init__(self, obs_size=550, hidden_size=512, num_layers=3):
         super(STSValueNetwork, self).__init__()
         
         self.obs_size = obs_size
@@ -91,7 +91,7 @@ class STSActorCritic(nn.Module):
     Shares a common backbone between policy and value networks for efficiency.
     """
     
-    def __init__(self, obs_size=412, hidden_size=512, action_size=256, num_layers=3):
+    def __init__(self, obs_size=550, hidden_size=512, action_size=256, num_layers=3):
         super(STSActorCritic, self).__init__()
         
         self.obs_size = obs_size
@@ -156,9 +156,9 @@ def test_networks():
     """Test the neural network architectures with sample data."""
     print("=== Testing Neural Network Architectures ===\n")
     
-    # Create sample observation (412-dimensional state from sts_lightspeed)
+    # Create sample observation (550-dimensional state from sts_lightspeed)
     batch_size = 4
-    obs_size = 412
+    obs_size = 550
     sample_obs = torch.randn(batch_size, obs_size)
     
     print(f"Sample observation shape: {sample_obs.shape}")

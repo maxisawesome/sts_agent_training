@@ -17,7 +17,7 @@ def analyze_nn_interface():
     # For now, let's explore what we can from the interface
     
     # The observation_space_size is a static constant, not an instance variable
-    print("Observation space size: 412 (from code analysis)")
+    print("Observation space size: 550 (updated to include events and generic choice options)")
     
     # Get observation maximums to understand the feature ranges
     obs_maxs = nn_interface.getObservationMaximums()
@@ -30,7 +30,9 @@ def analyze_nn_interface():
     print("- Features 4-13: Boss type (one-hot encoded, 10 possible bosses)")
     print("- Features 14-233: Deck composition (220 features for card counts)")
     print("- Features 234-411: Relics (178 binary features)")
-    print(f"Total: {4 + 10 + 220 + 178} = 412 features")
+    print("- Features 412-469: Current event (58 one-hot encoded events)")
+    print("- Features 470-549: Generic choice options (4 options * 20 features per option = 80 features)")
+    print(f"Total: {4 + 10 + 220 + 178 + 58 + 80} = 550 features")
     
     return nn_interface
 

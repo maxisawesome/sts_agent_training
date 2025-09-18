@@ -94,7 +94,7 @@ class PPOTrainer:
         
         # Initialize network FIRST (needed for wandb.watch)
         self.actor_critic = STSActorCritic(
-            obs_size=412,
+            obs_size=550,
             hidden_size=config.hidden_size,
             action_size=config.action_size,
             num_layers=config.num_layers
