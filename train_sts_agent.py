@@ -152,6 +152,7 @@ def main():
     train_parser.add_argument('--reward-function', type=str, default='simple', 
                             choices=['simple', 'comprehensive', 'sparse', 'shaped'],
                             help='Reward function to use')
+    train_parser.add_argument('--ascension', type=int, default=0, help='Ascension level (0-20)')
     train_parser.add_argument('--wandb', action='store_true', default=True, help='Enable wandb tracking')
     train_parser.add_argument('--no-wandb', dest='wandb', action='store_false', help='Disable wandb tracking')
     train_parser.add_argument('--wandb-project', type=str, default='sts-neural-agent', help='Wandb project name')
@@ -181,6 +182,7 @@ def main():
             'batch_size': args.batch_size,
             'hidden_size': args.hidden_size,
             'reward_function': args.reward_function,
+            'ascension': args.ascension,
             'use_wandb': args.wandb,
             'wandb_project': args.wandb_project,
             'wandb_entity': args.wandb_entity,

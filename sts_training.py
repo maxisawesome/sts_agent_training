@@ -58,6 +58,7 @@ class TrainingConfig:
     
     # Environment
     max_episode_length: int = 1000
+    ascension: int = 0
     reward_function: str = 'simple'  # Options: 'simple', 'comprehensive', 'sparse', 'shaped'
     
     # Weights & Biases tracking
@@ -111,7 +112,7 @@ class PPOTrainer:
         
         # Initialize environment and data collection
         reward_function = getattr(config, 'reward_function', 'simple')
-        self.env = STSEnvironmentWrapper(reward_function=reward_function)
+        self.env = STSEnvironmentWrapper(ascension=config.ascension, reward_function=reward_function)
         self.buffer = ExperienceBuffer(max_size=50000)
         self.collector = STSDataCollector(self.env, self.buffer)
         

@@ -46,8 +46,9 @@ class STSEnvironmentWrapper:
     This class bridges the gap between the C++ simulation engine and Python RL training.
     """
     
-    def __init__(self, character_class=None, reward_function='simple'):
+    def __init__(self, character_class=None, ascension=0, reward_function='simple'):
         self.character_class = character_class or slaythespire.CharacterClass.IRONCLAD
+        self.ascension = ascension
         self.nn_interface = slaythespire.getNNInterface()
         self.reward_manager = RewardFunctionManager()
         self.reward_manager.set_reward_function(reward_function)
@@ -58,8 +59,7 @@ class STSEnvironmentWrapper:
         # Generate random seeds for new game
         seed = random.randint(0, 2**31 - 1)
         
-        # TODO: set ascension correctly
-        self.game_context = slaythespire.GameContext(self.character_class, seed, 0)
+        self.game_context = slaythespire.GameContext(self.character_class, seed, self.ascension)
         self.step_count = 0
         self.done = False
         self.total_reward = 0.0
