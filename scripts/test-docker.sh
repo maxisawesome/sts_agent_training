@@ -184,7 +184,7 @@ import torch
 print("Python imports: ✅")
 print(f"PyTorch version: {torch.__version__}")
 print(f"CUDA available: {torch.cuda.is_available()}")
-gc = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 123, 456)
+gc = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 123456, 0)
 print(f"Game context: HP={gc.cur_hp}/{gc.max_hp}")
 print("All tests passed!")
 ' > interactive_test.log 2>&1; then

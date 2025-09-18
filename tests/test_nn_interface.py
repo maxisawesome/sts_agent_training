@@ -40,7 +40,7 @@ def test_game_creation():
     # Test creating a GameContext - needs CharacterClass, seed1, seed2
     try:
         # Use Ironclad character class, and some seed values
-        game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 12345, 67890)
+        game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 1234567890, 0)
         print("Successfully created GameContext with Ironclad character")
         
         nn_interface = slaythespire.getNNInterface()

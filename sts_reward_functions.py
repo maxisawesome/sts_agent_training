@@ -330,9 +330,9 @@ def test_reward_functions():
     # Create sample game contexts
     game_states = [
         # Initial state
-        slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 12345, 67890),
+        slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 1234567890, 20),
         # Later in game (simulate progression)
-        slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 12346, 67891),
+        slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 1234667891, 20),
     ]
     
     # Modify the second state to simulate progression

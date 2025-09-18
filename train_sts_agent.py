@@ -116,7 +116,7 @@ def interactive_play(model_path: str = None):
         print(f"  {key}: {value}")
     
     # Create a game context for demonstration
-    game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 12345, 67890)
+    game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 1234567890, 0)
     
     print(f"\nGame state:")
     print(f"  HP: {game_context.cur_hp}/{game_context.max_hp}")

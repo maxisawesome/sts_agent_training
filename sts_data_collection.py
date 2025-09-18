@@ -56,10 +56,10 @@ class STSEnvironmentWrapper:
     def reset(self) -> np.ndarray:
         """Reset the environment and return initial observation."""
         # Generate random seeds for new game
-        seed1 = random.randint(0, 2**31 - 1)
-        seed2 = random.randint(0, 2**31 - 1)
+        seed = random.randint(0, 2**31 - 1)
         
-        self.game_context = slaythespire.GameContext(self.character_class, seed1, seed2)
+        # TODO: set ascension correctly
+        self.game_context = slaythespire.GameContext(self.character_class, seed, 0)
         self.step_count = 0
         self.done = False
         self.total_reward = 0.0

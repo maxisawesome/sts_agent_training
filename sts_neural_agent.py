@@ -205,7 +205,8 @@ class STSNeuralGameRunner:
             seed = random.randint(0, 2**31 - 1)
         
         # Create game context
-        game_context = slaythespire.GameContext(character_class, seed, seed + 1)
+        # TODO: set ascension correctly
+        game_context = slaythespire.GameContext(character_class, seed, 0)
         self.agent.reset_episode()
         
         game_result = {
@@ -274,7 +275,7 @@ def test_neural_agent():
     # Test with random agent (no model)
     print("--- Testing Random Agent ---")
     random_agent = STSNeuralAgent()
-    game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 12345, 67890)
+    game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 1234567890, 0)
     
     print(f"Agent statistics: {random_agent.get_statistics()}")
     

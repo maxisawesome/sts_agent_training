@@ -13,7 +13,7 @@ def main():
     print("=== Simple Reward Function Analysis ===\n")
     
     # Create sample game states
-    game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 12345, 67890)
+    game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 1234567890, 0)
     
     print("Current Game State:")
     print(f"  HP: {game_context.cur_hp}/{game_context.max_hp}")

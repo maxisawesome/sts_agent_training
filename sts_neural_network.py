@@ -199,7 +199,7 @@ def test_with_real_observation():
     
     try:
         # Create a real game context
-        game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 12345, 67890)
+        game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 1234567890, 0)
         nn_interface = slaythespire.getNNInterface()
         
         # Get real observation

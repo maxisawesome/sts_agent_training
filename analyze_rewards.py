@@ -23,16 +23,16 @@ def simulate_game_progression():
     scenarios = []
     
     # Scenario 1: Healthy start
-    gc1 = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 100, 200)
+    gc1 = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 100200, 0)
     scenarios.append(("Healthy Start", gc1))
     
     # Scenario 2: Low health
-    gc2 = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 101, 201)
+    gc2 = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 101201, 0)
     # Simulate damage (we can't actually modify the C++ object easily, but we can analyze current state)
     scenarios.append(("Low Health", gc2))
     
     # Scenario 3: Different character
-    gc3 = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 102, 202)
+    gc3 = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 102202, 0)
     scenarios.append(("Different Seed", gc3))
     
     return scenarios
