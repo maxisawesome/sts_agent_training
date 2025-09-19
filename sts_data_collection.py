@@ -206,7 +206,7 @@ class STSDataCollector:
             outcome="random"
         )
     
-    def collect_episode_with_policy(self, policy_network, temperature: float = 1.0) -> Episode:
+    def collect_episode_with_policy(self, policy_network, temperature: float = 1.0, decision_logger=None) -> Episode:
         """Collect an episode using a neural network policy."""
         experiences = []
         obs = self.env.reset()
@@ -239,6 +239,32 @@ class STSDataCollector:
                 action = action_dist.sample().item()
                 log_prob = action_dist.log_prob(torch.tensor(action).to(self.device)).item()
                 
+                # Log decision if logger is provided
+                if decision_logger and decision_logger.enabled:
+                    # Extract game state information
+                    game_state = self._extract_game_state(obs)
+                    available_choices = self._extract_available_choices(obs)
+                    
+                    # Get state value if available
+                    state_value = None
+                    if hasattr(policy_network, 'forward') and isinstance(policy_network(obs_tensor), tuple):
+                        _, value_tensor = policy_network(obs_tensor)
+                        state_value = value_tensor.item()
+                    
+                    decision_logger.log_decision(
+                        episode_num=self.episode_count,
+                        step_num=step_count,
+                        game_state=game_state,
+                        available_choices=available_choices,
+                        action_probabilities=action_probs.cpu().numpy().flatten(),
+                        state_value=state_value,
+                        chosen_action=action,
+                        additional_info={
+                            "temperature": temperature,
+                            "log_prob": log_prob
+                        }
+                    )
+                
                 next_obs, reward, done, info = self.env.step(action)
                 
                 experience = Experience(
@@ -263,6 +289,96 @@ class STSDataCollector:
             episode_length=len(experiences),
             outcome="policy"
         )
+    
+    def _extract_game_state(self, observation: np.ndarray) -> Dict:
+        """Extract interpretable game state information from observation."""
+        try:
+            # Extract basic game state from observation
+            # Based on our observation space structure (550 dimensions)
+            hp_current = int(observation[0])
+            hp_max = int(observation[1]) 
+            gold = int(observation[2])
+            floor = int(observation[3])
+            
+            # Boss encoding (features 4-13, one-hot)
+            boss_idx = np.argmax(observation[4:14])
+            boss_names = ["SLIME_BOSS", "HEXAGHOST", "THE_GUARDIAN", "CHAMP", "AUTOMATON", 
+                         "COLLECTOR", "TIME_EATER", "DONU_AND_DECA", "AWAKENED_ONE", "THE_HEART"]
+            boss = boss_names[boss_idx] if boss_idx < len(boss_names) else "UNKNOWN"
+            
+            # Event encoding (features 412-469, one-hot)
+            event_start = 412
+            event_features = observation[event_start:event_start + 58]
+            current_event_idx = np.argmax(event_features) if np.any(event_features) else -1
+            
+            return {
+                "hp_current": hp_current,
+                "hp_max": hp_max,
+                "gold": gold,
+                "floor": floor,
+                "boss": boss,
+                "current_event_idx": int(current_event_idx),
+                "has_active_event": bool(np.any(event_features))
+            }
+        except Exception as e:
+            return {"error": f"Failed to extract game state: {str(e)}"}
+    
+    def _extract_available_choices(self, observation: np.ndarray) -> List[Dict]:
+        """Extract available choice options from observation."""
+        try:
+            choices = []
+            choice_start = 470  # Start of generic choice features
+            
+            for choice_idx in range(4):
+                start_idx = choice_start + (choice_idx * 20)
+                choice_features = observation[start_idx:start_idx + 20]
+                
+                # Parse choice features
+                choice_types = choice_features[0:8]
+                binary_flags = choice_features[8:10]
+                card_id = int(choice_features[10])
+                relic_id = int(choice_features[11])
+                gold_amount = int(choice_features[12])
+                hp_change = int(choice_features[13])
+                max_hp_change = int(choice_features[14])
+                gold_cost = int(choice_features[15])
+                hp_cost = int(choice_features[16])
+                
+                # Only include non-empty choices
+                if np.any(choice_features):
+                    choice_info = {
+                        "choice_index": choice_idx,
+                        "choice_types": {
+                            "is_card_reward": bool(choice_types[0]),
+                            "is_relic_reward": bool(choice_types[1]),
+                            "is_gold_reward": bool(choice_types[2]),
+                            "is_hp_change": bool(choice_types[3]),
+                            "is_card_upgrade": bool(choice_types[4]),
+                            "is_card_removal": bool(choice_types[5]),
+                            "is_card_transform": bool(choice_types[6]),
+                            "is_shop_action": bool(choice_types[7])
+                        },
+                        "flags": {
+                            "is_curse": bool(binary_flags[0]),
+                            "is_upgrade": bool(binary_flags[1])
+                        },
+                        "card_id": card_id,
+                        "relic_id": relic_id,
+                        "rewards": {
+                            "gold_amount": gold_amount,
+                            "hp_change": hp_change,
+                            "max_hp_change": max_hp_change
+                        },
+                        "costs": {
+                            "gold_cost": gold_cost,
+                            "hp_cost": hp_cost
+                        }
+                    }
+                    choices.append(choice_info)
+            
+            return choices
+        except Exception as e:
+            return [{"error": f"Failed to extract choices: {str(e)}"}]
 
 def test_data_collection():
     """Test the data collection system."""

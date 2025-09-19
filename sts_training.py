@@ -16,6 +16,8 @@ from typing import List, Tuple, Dict, Optional
 import time
 from dataclasses import dataclass
 import json
+import logging
+from datetime import datetime
 
 # Weights & Biases for experiment tracking
 try:
@@ -29,6 +31,147 @@ import slaythespire
 
 from sts_neural_network import STSActorCritic
 from sts_data_collection import STSEnvironmentWrapper, ExperienceBuffer, STSDataCollector, Experience
+
+class DecisionLogger:
+    """
+    Logs model decisions and available options for analysis and debugging.
+    
+    Creates structured logs with information about:
+    - Current game state context
+    - Available choices/options
+    - Model's decision process (action probabilities, values)
+    - Final action taken
+    - Outcomes and rewards
+    """
+    
+    def __init__(self, config: 'TrainingConfig'):
+        self.config = config
+        self.enabled = config.enable_decision_logging
+        self.step_counter = 0
+        
+        if not self.enabled:
+            return
+            
+        # Create log directory
+        os.makedirs(config.log_directory, exist_ok=True)
+        
+        # Set up structured logging
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = os.path.join(config.log_directory, f"decisions_{timestamp}.jsonl")
+        
+        # Create logger
+        self.logger = logging.getLogger('decision_logger')
+        self.logger.setLevel(getattr(logging, config.log_level.upper()))
+        
+        # Remove existing handlers
+        for handler in self.logger.handlers[:]:
+            self.logger.removeHandler(handler)
+        
+        # Add file handler for JSON lines format
+        file_handler = logging.FileHandler(log_filename)
+        file_handler.setLevel(getattr(logging, config.log_level.upper()))
+        
+        # Use simple formatter (we'll format JSON ourselves)
+        formatter = logging.Formatter('%(message)s')
+        file_handler.setFormatter(formatter)
+        
+        self.logger.addHandler(file_handler)
+        self.logger.propagate = False
+        
+        print(f"✅ Decision logging enabled: {log_filename}")
+    
+    def log_decision(self, 
+                    episode_num: int,
+                    step_num: int,
+                    game_state: Dict,
+                    available_choices: List[Dict],
+                    action_probabilities: np.ndarray,
+                    state_value: float,
+                    chosen_action: int,
+                    reward: float = None,
+                    additional_info: Dict = None):
+        """
+        Log a single decision step.
+        
+        Args:
+            episode_num: Current episode number
+            step_num: Step within current episode
+            game_state: Current game state information
+            available_choices: List of available choice options
+            action_probabilities: Model's action probability distribution
+            state_value: Model's state value estimate
+            chosen_action: Action index chosen by the model
+            reward: Reward received (if available)
+            additional_info: Any additional context information
+        """
+        if not self.enabled:
+            return
+            
+        self.step_counter += 1
+        
+        # Only log every N steps if configured
+        if self.step_counter % self.config.log_every_n_steps != 0:
+            return
+        
+        # Create structured log entry
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "episode": episode_num,
+            "step": step_num,
+            "global_step": self.step_counter,
+            "game_state": game_state,
+            "available_choices": available_choices,
+            "model_output": {
+                "action_probabilities": action_probabilities.tolist() if action_probabilities is not None else None,
+                "state_value": float(state_value) if state_value is not None else None,
+                "chosen_action": int(chosen_action),
+                "top_5_actions": self._get_top_actions(action_probabilities, 5) if action_probabilities is not None else None
+            },
+            "reward": float(reward) if reward is not None else None,
+            "additional_info": additional_info or {}
+        }
+        
+        # Log as JSON line
+        self.logger.info(json.dumps(log_entry, separators=(',', ':')))
+    
+    def _get_top_actions(self, action_probs: np.ndarray, k: int = 5) -> List[Dict]:
+        """Get top K actions with their probabilities."""
+        if action_probs is None:
+            return []
+            
+        top_indices = np.argsort(action_probs)[-k:][::-1]
+        return [
+            {
+                "action_index": int(idx),
+                "probability": float(action_probs[idx])
+            }
+            for idx in top_indices
+        ]
+    
+    def log_episode_summary(self, episode_num: int, total_reward: float, episode_length: int, outcome: str):
+        """Log episode completion summary."""
+        if not self.enabled:
+            return
+            
+        summary = {
+            "timestamp": datetime.now().isoformat(),
+            "type": "episode_summary",
+            "episode": episode_num,
+            "total_reward": float(total_reward),
+            "episode_length": int(episode_length),
+            "outcome": outcome
+        }
+        
+        self.logger.info(json.dumps(summary, separators=(',', ':')))
+    
+    def close(self):
+        """Clean up logging resources."""
+        if not self.enabled:
+            return
+            
+        for handler in self.logger.handlers:
+            handler.close()
+            self.logger.removeHandler(handler)
 
 @dataclass
 class TrainingConfig:
@@ -67,6 +210,12 @@ class TrainingConfig:
     wandb_entity: Optional[str] = None  # Your wandb username/team
     wandb_run_name: Optional[str] = None  # Auto-generated if None
     wandb_tags: List[str] = None  # Tags for organizing runs
+    
+    # Decision logging
+    enable_decision_logging: bool = False  # Log available options and model choices
+    log_directory: str = 'logs'  # Directory to save decision logs
+    log_level: str = 'INFO'  # Logging level: DEBUG, INFO, WARNING, ERROR
+    log_every_n_steps: int = 1  # Log decisions every N steps (1 = every step)
     
     def save(self, filepath: str):
         """Save configuration to JSON file."""
@@ -125,6 +274,9 @@ class PPOTrainer:
         
         # Create model save directory
         os.makedirs(config.model_save_path, exist_ok=True)
+        
+        # Initialize decision logger
+        self.decision_logger = DecisionLogger(config)
     
     def _init_wandb(self):
         """Initialize Weights & Biases tracking."""
@@ -352,12 +504,24 @@ class PPOTrainer:
             
             episodes = []
             for _ in range(self.config.collect_episodes_per_update):
-                episode = self.collector.collect_episode_with_policy(self.actor_critic)
+                episode = self.collector.collect_episode_with_policy(
+                    self.actor_critic, 
+                    decision_logger=self.decision_logger
+                )
                 episodes.append(episode)
                 
                 self.episode_rewards.append(episode.total_reward)
                 self.episode_lengths.append(episode.episode_length)
                 total_episodes += 1
+                
+                # Log episode summary
+                if self.decision_logger.enabled:
+                    self.decision_logger.log_episode_summary(
+                        episode_num=total_episodes,
+                        total_reward=episode.total_reward,
+                        episode_length=episode.episode_length,
+                        outcome=episode.outcome
+                    )
             
             collection_time = time.time() - start_time
             
@@ -431,6 +595,9 @@ class PPOTrainer:
             # Save final model to wandb
             wandb.save(os.path.join(self.config.model_save_path, "final_model.pt"))
             wandb.finish()
+        
+        # Clean up decision logger
+        self.decision_logger.close()
     
     def save_model(self, filename: str):
         """Save the trained model."""

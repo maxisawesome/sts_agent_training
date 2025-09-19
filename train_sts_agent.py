@@ -160,6 +160,17 @@ def main():
     train_parser.add_argument('--wandb-name', type=str, help='Wandb run name')
     train_parser.add_argument('--wandb-tags', type=str, nargs='+', help='Wandb tags for organizing runs')
     
+    # Decision logging arguments
+    train_parser.add_argument('--enable-logging', action='store_true', 
+                            help='Enable decision logging (logs available options and model choices)')
+    train_parser.add_argument('--log-dir', type=str, default='logs', 
+                            help='Directory to save decision logs')
+    train_parser.add_argument('--log-level', type=str, default='INFO', 
+                            choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+                            help='Logging level')
+    train_parser.add_argument('--log-every-n-steps', type=int, default=1,
+                            help='Log decisions every N steps (1 = every step)')
+    
     # Evaluation command
     eval_parser = subparsers.add_parser('eval', help='Evaluate a trained agent')
     eval_parser.add_argument('model', type=str, help='Path to model file')
@@ -187,7 +198,11 @@ def main():
             'wandb_project': args.wandb_project,
             'wandb_entity': args.wandb_entity,
             'wandb_run_name': args.wandb_name,
-            'wandb_tags': args.wandb_tags
+            'wandb_tags': args.wandb_tags,
+            'enable_decision_logging': args.enable_logging,
+            'log_directory': args.log_dir,
+            'log_level': args.log_level,
+            'log_every_n_steps': args.log_every_n_steps
         }
         train_agent(args.config, **train_kwargs)
     
