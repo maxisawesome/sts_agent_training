@@ -75,7 +75,6 @@ COPY setup_wandb.py ./
 COPY test*.py ./
 COPY analyze_rewards.py ./
 COPY simple_reward_analysis.py ./
-COPY run_sts_lightspeed.py ./
 
 # Copy any additional files that might be needed
 COPY install_module.py ./

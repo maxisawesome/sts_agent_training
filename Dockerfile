@@ -53,7 +53,6 @@ COPY setup_wandb.py ./
 COPY test*.py ./
 COPY analyze_rewards.py ./
 COPY simple_reward_analysis.py ./
-COPY run_sts_lightspeed.py ./
 
 # Test that everything works
 RUN python -c "import sys; sys.path.insert(0, 'sts_lightspeed'); import slaythespire; print('✅ sts_lightspeed import test successful')"
