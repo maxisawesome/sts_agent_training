@@ -147,6 +147,16 @@ class EventsPlanningNetwork(nn.Module):
         # Process event vector
         event_emb = self.event_processor(event_data)
 
+        # Ensure all tensors are 1D for concatenation
+        if game_state_emb.dim() > 1:
+            game_state_emb = game_state_emb.squeeze()
+        if deck_emb.dim() > 1:
+            deck_emb = deck_emb.squeeze()
+        if relic_emb.dim() > 1:
+            relic_emb = relic_emb.squeeze()
+        if event_emb.dim() > 1:
+            event_emb = event_emb.squeeze()
+
         # Combine all inputs
         combined_input = torch.cat([game_state_emb, deck_emb, relic_emb, event_emb])
 
@@ -270,7 +280,7 @@ def extract_event_data_from_observation(observation: np.ndarray,
         choice_vector = observation[start_idx:end_idx]
         choice_vectors.append(choice_vector)
 
-    choice_tensor = torch.FloatTensor(choice_vectors)  # Shape: (4, 20)
+    choice_tensor = torch.FloatTensor(np.array(choice_vectors))  # Shape: (4, 20)
 
     # Extract current event type (simplified - would need proper mapping)
     event_type = 0  # Placeholder - would extract from screen state and observation

@@ -20,6 +20,8 @@ import slaythespire
 from sts_training import PPOTrainer, TrainingConfig
 from sts_neural_agent import STSNeuralAgent, STSNeuralGameRunner
 from sts_model_manager import STSModelManager
+from sts_two_network_trainer import TwoNetworkTrainer, TwoNetworkTrainingConfig
+from sts_data_collection import STSEnvironmentWrapper
 
 def train_agent(config_path: str = None, **kwargs):
     """Train a new STS agent."""
@@ -159,6 +161,117 @@ def interactive_play(model_path: str = None, episodes: int = 1):
     print(f"Game Outcome: {game_context.outcome}")
     print(f"Steps taken: {step}")
 
+
+def train_two_network_agent(episodes: int = 1000, save_path: str = None, **kwargs):
+    """Train the two-network architecture agent."""
+    print("=== Training Two-Network STS Agent ===\n")
+
+    # Create configuration
+    config = TwoNetworkTrainingConfig()
+
+    # Override config with provided arguments
+    for key, value in kwargs.items():
+        if hasattr(config, key):
+            setattr(config, key, value)
+
+    print(f"Training configuration:")
+    print(f"  Episodes: {episodes}")
+    print(f"  Batch size: {config.batch_size}")
+    print(f"  Learning rate: {config.learning_rate}")
+    print(f"  Memory size: {config.memory_size}")
+    print(f"  Min experiences before training: {config.min_experiences_before_training}")
+
+    # Initialize trainer
+    trainer = TwoNetworkTrainer(config)
+
+    print(f"\nNetwork Architecture:")
+    print(f"  Events network parameters: {sum(p.numel() for p in trainer.events_network.parameters()):,}")
+    print(f"  Combat network parameters: {sum(p.numel() for p in trainer.combat_network.parameters()):,}")
+    print(f"  Shared embedding parameters: {sum(p.numel() for module in trainer.shared_embeddings.get_modules().values() for p in module.parameters()):,}")
+
+    # Initialize environment
+    env = STSEnvironmentWrapper()
+
+    # Training loop
+    print(f"\nStarting two-network training...")
+
+    episode_rewards = []
+    for episode in range(episodes):
+        result = trainer.train_episode(env)
+        episode_rewards.append(result['episode_reward'])
+
+        # Print progress
+        if (episode + 1) % 50 == 0:
+            recent_rewards = episode_rewards[-50:]
+            print(f"Episode {episode + 1:4d}/{episodes}")
+            print(f"  Avg reward (last 50): {sum(recent_rewards)/len(recent_rewards):6.3f}")
+            print(f"  Episode steps: {result['episode_steps']:3d}")
+            print(f"  Events actions: {result['events_actions']:3d}")
+            print(f"  Combat actions: {result['combat_actions']:3d}")
+            print(f"  Buffer size: {result['buffer_size']:5d} (E:{result['events_buffer_size']}, C:{result['combat_buffer_size']})")
+            print()
+
+        # Save model periodically
+        if save_path and (episode + 1) % config.save_frequency == 0:
+            episode_save_path = save_path.replace('.pt', f'_episode_{episode + 1}.pt')
+            trainer.save_model(episode_save_path)
+            print(f"Model saved to: {episode_save_path}")
+
+    # Final save
+    if save_path:
+        trainer.save_model(save_path)
+        print(f"\nFinal model saved to: {save_path}")
+
+    # Evaluation
+    print(f"\nRunning final evaluation...")
+    eval_results = trainer.evaluate(env, episodes=10)
+    print(f"Evaluation results over 10 episodes:")
+    print(f"  Average reward: {eval_results['avg_reward']:.3f} ± {eval_results['std_reward']:.3f}")
+    print(f"  Average steps: {eval_results['avg_steps']:.1f}")
+    print(f"  Events actions per episode: {eval_results['avg_events_actions']:.1f}")
+    print(f"  Combat actions per episode: {eval_results['avg_combat_actions']:.1f}")
+
+    print(f"\n✓ Two-network training complete!")
+
+
+def evaluate_two_network_agent(model_path: str, episodes: int = 100):
+    """Evaluate a trained two-network agent."""
+    print(f"=== Evaluating Two-Network Agent ===\n")
+    print(f"Model: {model_path}")
+    print(f"Episodes: {episodes}")
+
+    # Initialize trainer and load model
+    config = TwoNetworkTrainingConfig()
+    trainer = TwoNetworkTrainer(config)
+
+    if not os.path.exists(model_path):
+        print(f"Error: Model file not found: {model_path}")
+        return
+
+    trainer.load_model(model_path)
+    print("Model loaded successfully")
+
+    # Initialize environment
+    env = STSEnvironmentWrapper()
+
+    # Run evaluation
+    print(f"\nRunning evaluation...")
+    results = trainer.evaluate(env, episodes=episodes)
+
+    print(f"\nEvaluation Results:")
+    print(f"  Episodes: {results['episodes']}")
+    print(f"  Average reward: {results['avg_reward']:.3f} ± {results['std_reward']:.3f}")
+    print(f"  Average episode length: {results['avg_steps']:.1f}")
+    print(f"  Average events actions: {results['avg_events_actions']:.1f}")
+    print(f"  Average combat actions: {results['avg_combat_actions']:.1f}")
+
+    # Show detailed results for first few episodes
+    print(f"\nDetailed results (first 5 episodes):")
+    for i, result in enumerate(results['detailed_results'][:5]):
+        print(f"  Episode {i+1}: Reward={result['reward']:6.3f}, Steps={result['steps']:3d}, "
+              f"HP={result['final_hp']:2d}, Floor={result['final_floor']:2d}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="STS Neural Network Agent Training and Evaluation")
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
@@ -205,6 +318,20 @@ def main():
     play_parser = subparsers.add_parser('play', help='Interactive play session')
     play_parser.add_argument('--model', type=str, help='Path to model file (optional)')
     play_parser.add_argument('--episodes', type=int, default=1, help='Number of steps to take with the model')
+
+    # Two-network training command
+    two_net_train_parser = subparsers.add_parser('train-two-net', help='Train two-network architecture agent')
+    two_net_train_parser.add_argument('--episodes', type=int, default=1000, help='Number of training episodes')
+    two_net_train_parser.add_argument('--save', type=str, help='Path to save trained model')
+    two_net_train_parser.add_argument('--batch-size', type=int, default=32, help='Training batch size')
+    two_net_train_parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
+    two_net_train_parser.add_argument('--memory-size', type=int, default=50000, help='Experience replay buffer size')
+    two_net_train_parser.add_argument('--min-experiences', type=int, default=1000, help='Min experiences before training starts')
+
+    # Two-network evaluation command
+    two_net_eval_parser = subparsers.add_parser('eval-two-net', help='Evaluate two-network architecture agent')
+    two_net_eval_parser.add_argument('model', type=str, help='Path to two-network model file')
+    two_net_eval_parser.add_argument('--episodes', type=int, default=100, help='Number of evaluation episodes')
     
     args = parser.parse_args()
     
@@ -236,7 +363,25 @@ def main():
     
     elif args.command == 'play':
         interactive_play(args.model, args.episodes)
-    
+
+    elif args.command == 'train-two-net':
+        # Generate default save path if not provided
+        save_path = args.save
+        if save_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            save_path = f"sts_models/two_network_model_{timestamp}.pt"
+
+        train_kwargs = {
+            'batch_size': args.batch_size,
+            'learning_rate': args.lr,
+            'memory_size': args.memory_size,
+            'min_experiences_before_training': args.min_experiences
+        }
+        train_two_network_agent(args.episodes, save_path, **train_kwargs)
+
+    elif args.command == 'eval-two-net':
+        evaluate_two_network_agent(args.model, args.episodes)
+
     else:
         parser.print_help()
 

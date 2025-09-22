@@ -178,6 +178,16 @@ class CombatNetwork(nn.Module):
         # Process combat vector
         combat_emb = self.combat_processor(combat_data)
 
+        # Ensure all tensors are 1D for concatenation
+        if game_state_emb.dim() > 1:
+            game_state_emb = game_state_emb.squeeze()
+        if deck_emb.dim() > 1:
+            deck_emb = deck_emb.squeeze()
+        if relic_emb.dim() > 1:
+            relic_emb = relic_emb.squeeze()
+        if combat_emb.dim() > 1:
+            combat_emb = combat_emb.squeeze()
+
         # Combine all inputs
         combined_input = torch.cat([game_state_emb, deck_emb, relic_emb, combat_emb])
 
@@ -253,13 +263,22 @@ class CombatNetwork(nn.Module):
         # Process combat vector
         combat_emb = self.combat_processor(combat_data)
 
+        # Ensure all tensors are 1D for concatenation
+        game_state_emb = shared_data['game_state']
+        deck_emb = shared_data['deck']['full_deck']
+        relic_emb = shared_data['relics']
+
+        if game_state_emb.dim() > 1:
+            game_state_emb = game_state_emb.squeeze()
+        if deck_emb.dim() > 1:
+            deck_emb = deck_emb.squeeze()
+        if relic_emb.dim() > 1:
+            relic_emb = relic_emb.squeeze()
+        if combat_emb.dim() > 1:
+            combat_emb = combat_emb.squeeze()
+
         # Combine all inputs
-        combined_input = torch.cat([
-            shared_data['game_state'],
-            shared_data['deck']['full_deck'],
-            shared_data['relics'],
-            combat_emb
-        ])
+        combined_input = torch.cat([game_state_emb, deck_emb, relic_emb, combat_emb])
 
         # Get action logits
         action_logits = self.network(combined_input)
