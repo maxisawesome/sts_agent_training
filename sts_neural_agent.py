@@ -17,6 +17,7 @@ import slaythespire
 
 from sts_neural_network import STSActorCritic
 from sts_model_manager import STSModelManager
+from sts_action_decoder import STSActionDecoder
 
 class STSNeuralAgent:
     """
@@ -37,6 +38,7 @@ class STSNeuralAgent:
         self.temperature = temperature
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.nn_interface = slaythespire.getNNInterface()
+        self.action_decoder = STSActionDecoder()
         
         # Load model if provided
         if model_path and os.path.exists(model_path):
@@ -57,37 +59,58 @@ class STSNeuralAgent:
     def get_action(self, game_context: slaythespire.GameContext) -> int:
         """
         Get the next action to take given the current game state.
-        
-        This is the main interface method that the game engine can call.
+
+        Returns a generic action index (0-255) that can be used with the action decoder.
         """
         self.action_count += 1
-        
+
+        # Get valid actions in generic space
+        generic_actions, action_mapping = self.action_decoder.encode_actions(game_context)
+
+        if not generic_actions:
+            # No valid actions available
+            return -1
+
         if not self.use_neural_network:
-            return self._get_random_action()
-        
+            # Return random valid action
+            return random.choice(generic_actions)
+
         try:
             # Get observation from game state
             observation = self.nn_interface.getObservation(game_context)
             obs_tensor = torch.FloatTensor(observation).unsqueeze(0).to(self.device)
-            
+
             with torch.no_grad():
                 # Get action probabilities from model
                 action_probs, state_value = self.model(obs_tensor)
-                
+
                 # Apply temperature for exploration
                 if self.temperature != 1.0:
                     action_probs = torch.pow(action_probs, 1.0 / self.temperature)
                     action_probs = action_probs / action_probs.sum()
-                
-                # Sample action
-                action_dist = torch.distributions.Categorical(action_probs)
-                action = action_dist.sample().item()
-                
+
+                # Create action mask for valid actions only
+                action_mask = torch.zeros(256, dtype=torch.bool)
+                for action in generic_actions:
+                    action_mask[action] = True
+
+                # Mask invalid actions
+                masked_probs = action_probs.squeeze() * action_mask.float()
+
+                if masked_probs.sum() > 0:
+                    # Renormalize and sample from valid actions
+                    masked_probs = masked_probs / masked_probs.sum()
+                    action_dist = torch.distributions.Categorical(masked_probs)
+                    action = action_dist.sample().item()
+                else:
+                    # Fallback to random valid action
+                    action = random.choice(generic_actions)
+
                 return action
-                
+
         except Exception as e:
             print(f"Error in neural network inference: {e}")
-            return self._get_random_action()
+            return random.choice(generic_actions)
     
     def get_action_with_confidence(self, game_context: slaythespire.GameContext) -> Tuple[int, float, float]:
         """
@@ -159,6 +182,50 @@ class STSNeuralAgent:
             actions = random.sample(range(256), min(top_k, 256))
             return [(action, 1.0/top_k) for action in actions]
     
+    def execute_action(self, game_context: slaythespire.GameContext, generic_action: int) -> bool:
+        """
+        Execute the given generic action.
+
+        Args:
+            game_context: Current game state
+            generic_action: Generic action index (0-255)
+
+        Returns:
+            True if action was executed successfully, False otherwise.
+        """
+        # Get action mapping
+        generic_actions, action_mapping = self.action_decoder.encode_actions(game_context)
+
+        # Decode to game action bits
+        action_bits = self.action_decoder.decode_action(generic_action, action_mapping)
+
+        if action_bits is None:
+            return False
+
+        return game_context.execute_action(action_bits)
+
+    def get_action_description(self, game_context: slaythespire.GameContext, generic_action: int) -> str:
+        """Get a human-readable description of the generic action."""
+        try:
+            # Get action type info
+            action_info = self.action_decoder.get_action_type_info(generic_action)
+
+            # Get action mapping
+            generic_actions, action_mapping = self.action_decoder.encode_actions(game_context)
+
+            # Decode to game action bits
+            action_bits = self.action_decoder.decode_action(generic_action, action_mapping)
+
+            if action_bits is not None:
+                action = slaythespire.GameAction(action_bits)
+                desc = action.print_desc(game_context)
+                return f"{action_info['type']} action {generic_action}: {desc}"
+            else:
+                return f"{action_info['type']} action {generic_action}: Invalid"
+
+        except Exception as e:
+            return f"Error getting action description: {e}"
+
     def _get_random_action(self) -> int:
         """Get a random action (fallback when no model is available)."""
         return random.randint(0, 255)  # Assuming 256 possible actions

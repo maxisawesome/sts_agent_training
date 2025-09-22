@@ -19,6 +19,7 @@ import random
 import slaythespire
 
 from sts_reward_functions import RewardFunctionManager
+from sts_action_decoder import STSActionDecoder
 
 @dataclass
 class Experience:
@@ -52,6 +53,7 @@ class STSEnvironmentWrapper:
         self.nn_interface = slaythespire.getNNInterface()
         self.reward_manager = RewardFunctionManager()
         self.reward_manager.set_reward_function(reward_function)
+        self.action_decoder = STSActionDecoder()
         self.reset()
     
     def reset(self) -> np.ndarray:
@@ -75,39 +77,95 @@ class STSEnvironmentWrapper:
     def step(self, action: int) -> Tuple[np.ndarray, float, bool, Dict]:
         """
         Take an action in the environment.
-        
-        Note: This is a placeholder implementation. The actual action execution
-        would need to interface with the game's action system, which requires
-        understanding the specific action encoding used by sts_lightspeed.
+
+        Args:
+            action: Generic action index (0-255) from neural network
+
+        Returns:
+            Tuple of (next_observation, reward, done, info)
         """
         self.step_count += 1
-        
-        # Placeholder action execution
-        # In a full implementation, this would:
-        # 1. Convert action ID to game action
-        # 2. Execute action in game_context
-        # 3. Update game state
-        # 4. Calculate reward based on game outcome
-        
-        # Calculate reward using the reward function manager
-        reward = self.reward_manager.get_reward(self.game_context, action, self.done)
+
+        # Encode game actions to generic space
+        generic_actions, action_mapping = self.action_decoder.encode_actions(self.game_context)
+
+        if not generic_actions:
+            # No valid actions - game is likely over
+            self.done = True
+            reward = self.reward_manager.get_reward(self.game_context, action, self.done)
+            self.total_reward += reward
+            next_obs = self._get_observation()
+            info = {
+                'step_count': self.step_count,
+                'total_reward': self.total_reward,
+                'error': 'No valid actions available'
+            }
+            return next_obs, reward, self.done, info
+
+        # Map neural network action to valid game action
+        if action not in action_mapping:
+            # If neural network action is invalid, pick a random valid action
+            action = generic_actions[action % len(generic_actions)]
+
+        # Decode to game action bits
+        action_bits = self.action_decoder.decode_action(action, action_mapping)
+
+        if action_bits is None:
+            # Fallback to first valid action
+            action = generic_actions[0]
+            action_bits = self.action_decoder.decode_action(action, action_mapping)
+
+        # Execute the action in the game
+        success = self.game_context.execute_action(action_bits)
+
+        if not success:
+            # Action execution failed - use penalty
+            reward = -1.0
+            info = {
+                'step_count': self.step_count,
+                'total_reward': self.total_reward,
+                'error': f'Action execution failed for generic action {action} (bits: {action_bits})'
+            }
+        else:
+            # Action executed successfully
+            reward = self.reward_manager.get_reward(self.game_context, action, self.done)
+            action_info = self.action_decoder.get_action_type_info(action)
+            info = {
+                'step_count': self.step_count,
+                'total_reward': self.total_reward,
+                'generic_action': action,
+                'action_bits': action_bits,
+                'action_type': action_info['type'],
+                'valid_actions_count': len(generic_actions)
+            }
+
         self.total_reward += reward
-        
-        # Simple termination condition (placeholder)
+
+        # Check termination conditions
         self.done = (self.step_count >= 1000) or self._is_game_over()
-        
+
         next_obs = self._get_observation()
-        info = {
-            'step_count': self.step_count,
-            'total_reward': self.total_reward
-        }
-        
+
         return next_obs, reward, self.done, info
     
+    def get_action_mask(self) -> np.ndarray:
+        """
+        Get boolean mask indicating which actions are valid in current state.
+
+        Returns:
+            Boolean array of shape (256,) indicating valid actions
+        """
+        mask = self.action_decoder.get_valid_action_mask(self.game_context)
+        return np.array(mask, dtype=bool)
+
     def _is_game_over(self) -> bool:
-        """Check if the game is over (placeholder)."""
-        # In actual implementation, this would check game state
-        return self.game_context.cur_hp <= 0
+        """Check if the game is over."""
+        # Check if player is dead
+        if self.game_context.cur_hp <= 0:
+            return True
+
+        # Check if game outcome has been decided
+        return self.game_context.outcome != slaythespire.GameOutcome.UNDECIDED
 
 class ExperienceBuffer:
     """Buffer for storing and managing training experiences."""

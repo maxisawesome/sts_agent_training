@@ -99,7 +99,7 @@ def list_models():
             print(f"   Total Episodes: {model['total_episodes']}")
         print()
 
-def interactive_play(model_path: str = None):
+def interactive_play(model_path: str = None, episodes: int = 1):
     """Run an interactive play session."""
     print("=== Interactive STS Agent ===\n")
     
@@ -118,25 +118,46 @@ def interactive_play(model_path: str = None):
     # Create a game context for demonstration
     game_context = slaythespire.GameContext(slaythespire.CharacterClass.IRONCLAD, 1234567890, 0)
     
-    print(f"\nGame state:")
-    print(f"  HP: {game_context.cur_hp}/{game_context.max_hp}")
-    print(f"  Gold: {game_context.gold}")
-    print(f"  Floor: {game_context.floor_num}")
-    
-    # Get agent recommendations
-    if agent.use_neural_network:
-        top_actions = agent.get_top_actions(game_context, top_k=5)
-        print(f"\nTop 5 recommended actions:")
-        for i, (action, prob) in enumerate(top_actions, 1):
-            print(f"  {i}. Action {action}: {prob:.4f} probability")
-        
-        action, confidence, value = agent.get_action_with_confidence(game_context)
-        print(f"\nSelected action: {action}")
-        print(f"Confidence: {confidence:.4f}")
-        print(f"State value estimate: {value:.4f}")
-    else:
-        action = agent.get_action(game_context)
-        print(f"\nRandom action: {action}")
+    step = 0
+    while step < episodes and not (game_context.cur_hp <= 0 or game_context.outcome != slaythespire.GameOutcome.UNDECIDED):
+        print(f"\n=== Step {step + 1} ===")
+        print(f"HP: {game_context.cur_hp}/{game_context.max_hp}")
+        print(f"Gold: {game_context.gold}")
+        print(f"Floor: {game_context.floor_num}")
+        print(f"Screen: {game_context.screen_state}")
+
+        # Get agent action (now returns generic action)
+        generic_action = agent.get_action(game_context)
+        if generic_action == -1:
+            print("Agent returned invalid action - stopping")
+            break
+
+        # Get action description
+        action_desc = agent.get_action_description(game_context, generic_action)
+        print(f"Agent selected {action_desc}")
+
+        # Show agent recommendations if using neural network
+        if agent.use_neural_network:
+            action_idx_conf, confidence, value = agent.get_action_with_confidence(game_context)
+            print(f"Confidence: {confidence:.4f}")
+            print(f"State value estimate: {value:.4f}")
+
+        # Execute the action
+        success = agent.execute_action(game_context, generic_action)
+        if success:
+            print("✓ Action executed successfully")
+        else:
+            print("✗ Action execution failed")
+            break
+
+        step += 1
+
+    print(f"\n=== Game Complete ===")
+    print(f"Final HP: {game_context.cur_hp}/{game_context.max_hp}")
+    print(f"Final Gold: {game_context.gold}")
+    print(f"Final Floor: {game_context.floor_num}")
+    print(f"Game Outcome: {game_context.outcome}")
+    print(f"Steps taken: {step}")
 
 def main():
     parser = argparse.ArgumentParser(description="STS Neural Network Agent Training and Evaluation")
@@ -183,6 +204,7 @@ def main():
     # Interactive play command
     play_parser = subparsers.add_parser('play', help='Interactive play session')
     play_parser.add_argument('--model', type=str, help='Path to model file (optional)')
+    play_parser.add_argument('--episodes', type=int, default=1, help='Number of steps to take with the model')
     
     args = parser.parse_args()
     
@@ -213,7 +235,7 @@ def main():
         list_models()
     
     elif args.command == 'play':
-        interactive_play(args.model)
+        interactive_play(args.model, args.episodes)
     
     else:
         parser.print_help()
