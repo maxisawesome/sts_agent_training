@@ -24,7 +24,10 @@ class GenericActionType(IntEnum):
     CARD_REWARD = 64        # Actions 64-127
     EVENT_CHOICE = 128      # Actions 128-191
     SHOP_ACTION = 192       # Actions 192-223
-    MISCELLANEOUS = 224     # Actions 224-255
+    MISCELLANEOUS = 224     # Actions 224-239
+    COMBAT_CARD = 240       # Actions 240-249 (playing cards)
+    COMBAT_POTION = 250     # Actions 250-254 (using potions)
+    COMBAT_END_TURN = 255   # Action 255 (end turn)
 
 
 class STSActionDecoder:
@@ -53,7 +56,15 @@ class STSActionDecoder:
         self.shop_action_count = 32
 
         self.misc_action_start = 224
-        self.misc_action_count = 32
+        self.misc_action_count = 16
+
+        self.combat_card_start = 240
+        self.combat_card_count = 10
+
+        self.combat_potion_start = 250
+        self.combat_potion_count = 5
+
+        self.combat_end_turn = 255
 
     def encode_actions(self, game_context: slaythespire.GameContext) -> Tuple[List[int], Dict[int, int]]:
         """
@@ -149,6 +160,69 @@ class STSActionDecoder:
         """
         return action_mapping.get(generic_action)
 
+    def encode_combat_actions(self, game_context: slaythespire.GameContext) -> Tuple[List[int], Dict[int, Any]]:
+        """
+        Encode combat actions (cards, potions, end turn) into generic action space.
+
+        Note: This is a placeholder implementation. Full combat action support
+        requires BattleContext integration to get actual hand, energy, targets, etc.
+
+        Args:
+            game_context: Current game state
+
+        Returns:
+            Tuple of:
+            - List of generic action indices for combat actions
+            - Mapping from generic action to combat action data
+        """
+        if game_context.screen_state != slaythespire.ScreenState.BATTLE:
+            return [], {}
+
+        generic_actions = []
+        action_mapping = {}
+
+        # Always include end turn action
+        generic_actions.append(self.combat_end_turn)
+        action_mapping[self.combat_end_turn] = {
+            'action_type': slaythespire.ActionType.END_TURN,
+            'action_bits': 0,  # Placeholder - would come from BattleContext
+            'description': 'End Turn'
+        }
+
+        # Placeholder card actions (would come from actual hand analysis)
+        # In real implementation, this would iterate through hand cards
+        for i in range(min(self.combat_card_count, 5)):  # Assume max 5 playable cards
+            generic_action = self.combat_card_start + i
+            generic_actions.append(generic_action)
+            action_mapping[generic_action] = {
+                'action_type': slaythespire.ActionType.CARD,
+                'card_id': 10 + i,  # Placeholder card ID
+                'source_index': i,  # Hand position
+                'cost': 1,  # Placeholder cost
+                'action_bits': i + 1,  # Placeholder action bits
+                'description': f'Play Card {i}'
+            }
+
+        # Placeholder potion actions
+        for i in range(min(self.combat_potion_count, 3)):  # Assume max 3 potions
+            generic_action = self.combat_potion_start + i
+            generic_actions.append(generic_action)
+            action_mapping[generic_action] = {
+                'action_type': slaythespire.ActionType.POTION,
+                'potion_id': i,
+                'source_index': i,
+                'action_bits': 100 + i,  # Placeholder action bits
+                'description': f'Use Potion {i}'
+            }
+
+        return generic_actions, action_mapping
+
+    def is_combat_action(self, generic_action: int) -> bool:
+        """Check if a generic action is a combat action."""
+        return (self.combat_card_start <= generic_action <= self.combat_card_start + self.combat_card_count - 1 or
+                self.combat_potion_start <= generic_action <= self.combat_potion_start + self.combat_potion_count - 1 or
+                generic_action == self.combat_end_turn)
+
     def get_action_type_info(self, generic_action: int) -> Dict[str, Any]:
         """
         Get information about what type of action this generic action represents.
@@ -182,6 +256,24 @@ class STSActionDecoder:
                 'type': 'shop_action',
                 'subtype': 'purchase',
                 'relative_index': generic_action - self.shop_action_start
+            }
+        elif self.combat_card_start <= generic_action < self.combat_card_start + self.combat_card_count:
+            return {
+                'type': 'combat_card',
+                'subtype': 'play_card',
+                'relative_index': generic_action - self.combat_card_start
+            }
+        elif self.combat_potion_start <= generic_action < self.combat_potion_start + self.combat_potion_count:
+            return {
+                'type': 'combat_potion',
+                'subtype': 'use_potion',
+                'relative_index': generic_action - self.combat_potion_start
+            }
+        elif generic_action == self.combat_end_turn:
+            return {
+                'type': 'combat_end_turn',
+                'subtype': 'end_turn',
+                'relative_index': 0
             }
         else:
             return {
