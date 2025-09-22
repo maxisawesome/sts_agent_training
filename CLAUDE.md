@@ -68,24 +68,14 @@ python3 simple_reward_analysis.py
 # Quick build-only test (faster, no functionality tests)
 ./docker-scripts/test-docker.sh --build-only
 
-# Test specific Docker variant
-./docker-scripts/test-docker.sh --dev          # Development optimized
-./docker-scripts/test-docker.sh --optimized    # Multi-stage production build
-
 # Force clean rebuild
 ./docker-scripts/test-docker.sh --force-rebuild --no-cache
 ```
 
 **Manual Building:**
 ```bash
-# Standard build (with caching)
+# Build Docker image (with caching)
 docker build -t sts-neural-agent .
-
-# Development build (optimized for Python code changes)
-docker build -f Dockerfile.dev -t sts-neural-agent-dev .
-
-# Production multi-stage build
-docker build -f Dockerfile.optimized -t sts-neural-agent-prod .
 
 # Run training in container
 docker run --gpus all -it sts-neural-agent

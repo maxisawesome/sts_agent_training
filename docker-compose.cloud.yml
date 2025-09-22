@@ -50,9 +50,9 @@ services:
 
   # Development/debugging service
   sts-dev:
-    build: 
+    build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: sts-dev
     profiles: ["dev"]
     volumes:

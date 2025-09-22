@@ -11,33 +11,17 @@ The original Dockerfile rebuilt everything from scratch on every build because:
 
 ## Solution: Layered Caching Strategy
 
-### 1. **Dockerfile** (Standard - Optimized Layers)
+### **Dockerfile** (Optimized Layers)
 - Separates C++ source from Python source
 - C++ build layer caches unless C++ files change
 - Python files copied last (most frequent changes)
+- Uses multi-stage build for optimal layer caching
 
 **Performance:**
 - First build: 10-15 minutes
 - Python changes only: ~30 seconds
 - C++ changes: 2-5 minutes
-
-### 2. **Dockerfile.dev** (Development Optimized)
-- Single-stage build optimized for development iteration
-- Minimal layers for faster debugging
-- Best for frequent Python code changes
-
-**Performance:**
-- First build: 8-12 minutes
-- Subsequent builds: 30 seconds - 2 minutes
-
-### 3. **Dockerfile.optimized** (Multi-Stage Production)
-- Separate build stage for C++ compilation
-- Minimal runtime image with only necessary files
-- Best for production deployments
-
-**Performance:**
-- First build: 12-18 minutes
-- Subsequent builds: 1-3 minutes
+- Dependency changes: 5-10 minutes
 - Smallest final image size
 
 ## Cache Efficiency Layers
@@ -53,17 +37,14 @@ From most stable (cached longest) to most volatile:
 
 ## Usage
 
-### Testing Different Variants
+### Testing
 
 ```bash
-# Standard optimized build
+# Optimized build with caching
 ./docker-scripts/test-docker.sh
 
-# Development build (fastest Python iteration)
-./docker-scripts/test-docker.sh --dev
-
-# Multi-stage production build
-./docker-scripts/test-docker.sh --optimized
+# Build-only test (no functionality tests)
+./docker-scripts/test-docker.sh --build-only
 
 # Force complete rebuild (when base image updates)
 ./docker-scripts/test-docker.sh --force-rebuild --no-cache
@@ -72,14 +53,14 @@ From most stable (cached longest) to most volatile:
 ### Manual Building
 
 ```bash
-# Development workflow
-docker build -f Dockerfile.dev -t sts-dev .
+# Standard optimized build
+docker build -t sts-neural-agent .
 
-# Production deployment
-docker build -f Dockerfile.optimized -t sts-prod .
+# Debug build issues (no cache)
+docker build --no-cache -t sts-neural-agent .
 
-# Debug build issues
-docker build --no-cache -t sts-debug .
+# Build with specific tag
+docker build -t sts-neural-agent:v1.0 .
 ```
 
 ## Cache Invalidation Scenarios
@@ -93,9 +74,9 @@ docker build --no-cache -t sts-debug .
 
 ## Development Workflow Recommendations
 
-1. **Daily Development**: Use `Dockerfile.dev` for Python code iteration
-2. **C++ Changes**: Use standard `Dockerfile` with caching
-3. **Production Builds**: Use `Dockerfile.optimized` for deployment
+1. **Daily Development**: Use standard `Dockerfile` with caching for all development
+2. **C++ Changes**: Rebuild will cache all layers up to C++ source changes
+3. **Production Builds**: Same `Dockerfile` works for production deployment
 4. **CI/CD**: Use `--no-cache` periodically to ensure clean builds
 
 ## Monitoring Cache Efficiency
@@ -123,9 +104,9 @@ Good cache efficiency indicators:
 - Verify Docker daemon has sufficient disk space
 
 ### Large Image Sizes
-- Use `Dockerfile.optimized` for production
-- Clean up build artifacts in final stage
-- Consider using alpine-based images for smaller footprint
+- The main `Dockerfile` uses multi-stage builds for optimized production images
+- Build artifacts are cleaned up in the final stage
+- Consider using alpine-based images for even smaller footprint
 
 ## Performance Monitoring
 

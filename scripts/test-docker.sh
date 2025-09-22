@@ -19,14 +19,6 @@ while [[ $# -gt 0 ]]; do
             FORCE_REBUILD=true
             shift
             ;;
-        --dev)
-            DOCKERFILE="Dockerfile.dev"
-            shift
-            ;;
-        --optimized)
-            DOCKERFILE="Dockerfile.optimized"
-            shift
-            ;;
         --build-only)
             BUILD_ONLY=true
             shift
@@ -36,8 +28,6 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --no-cache       Build without using Docker cache"
             echo "  --force-rebuild  Force a complete rebuild"
-            echo "  --dev           Use Dockerfile.dev (development optimized)"
-            echo "  --optimized     Use Dockerfile.optimized (multi-stage build)"
             echo "  --build-only    Only build, skip functionality tests"
             echo "  --help          Show this help message"
             exit 0

@@ -65,8 +65,8 @@ df -h
 # Limit Docker memory usage
 docker build --memory=4g -t sts-neural-agent .
 
-# Or use smaller base image (CPU-only)
-docker build -f Dockerfile.simple -t sts-neural-agent .
+# Standard build (includes GPU support)
+docker build -t sts-neural-agent .
 ```
 
 ### 5. GPU Support Not Working
