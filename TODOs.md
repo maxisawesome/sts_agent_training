@@ -202,27 +202,14 @@
 
 ## Priority 4: Advanced Features (Post-Initial Training)
 
-### 4.1 Tree Search Integration
-- [ ] **Monte Carlo Tree Search (MCTS)**
-  - Integrate value network with MCTS for combat
-  - Design action expansion policies
-  - Implement UCB selection with neural priors
-  - Add simulation rollouts with learned policy
-
-- [ ] **Search-Based Planning**
-  - Route planning with search
-  - Deck building strategy trees
-  - Event choice optimization
-  - Resource allocation planning
-
-### 4.2 Multi-Character Support
+### 4.1 Multi-Character Support
 - [ ] **Character-Specific Models**
   - Separate heads for Ironclad/Silent/Defect/Watcher
   - Character-specific action encodings
   - Unique card and strategy embeddings
   - Transfer learning between characters
 
-### 4.3 Meta-Learning and Adaptation
+### 4.2 Meta-Learning and Adaptation
 - [ ] **Opponent Modeling** (for future multiplayer/mods)
   - Monster behavior prediction
   - Boss pattern recognition
@@ -330,7 +317,7 @@
 4. **Phase 4 (Long-term)**: Optimization & Production
    - Performance optimization
    - Multi-character support
-   - MCTS integration (especially for combat)
+   - Advanced neural architectures
    - Production deployment
 
 ## 🚧 **Critical Implementation Notes**

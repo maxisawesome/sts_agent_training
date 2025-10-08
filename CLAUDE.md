@@ -36,6 +36,15 @@ python3 train_sts_agent.py train --episodes 2000 --reward-function comprehensive
 # Evaluate a trained model
 python3 train_sts_agent.py eval sts_models/final_model.pt --games 100
 
+# Two-network training (single environment)
+python3 train_sts_agent.py train-two-net --episodes 1000
+
+# Two-network training (parallel environments - RECOMMENDED)
+python3 train_sts_agent.py train-parallel --batches 100 --num-envs 4
+
+# Evaluate two-network model
+python3 train_sts_agent.py eval-two-net sts_models/two_network_model.pt --episodes 100
+
 # List available models
 python3 train_sts_agent.py list
 

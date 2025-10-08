@@ -21,6 +21,7 @@ from sts_training import PPOTrainer, TrainingConfig
 from sts_neural_agent import STSNeuralAgent, STSNeuralGameRunner
 from sts_model_manager import STSModelManager
 from sts_two_network_trainer import TwoNetworkTrainer, TwoNetworkTrainingConfig
+from sts_parallel_trainer import ParallelTwoNetworkTrainer, ParallelTwoNetworkTrainingConfig
 from sts_data_collection import STSEnvironmentWrapper
 
 def train_agent(config_path: str = None, **kwargs):
@@ -234,6 +235,61 @@ def train_two_network_agent(episodes: int = 1000, save_path: str = None, **kwarg
     print(f"\n✓ Two-network training complete!")
 
 
+def train_two_network_parallel(batches: int = 100, save_path: str = None, **kwargs):
+    """Train the two-network architecture using parallel environments."""
+    print("=== Training Two-Network STS Agent (Parallel) ===\n")
+
+    # Create configuration
+    config = ParallelTwoNetworkTrainingConfig()
+
+    # Override config with provided arguments
+    for key, value in kwargs.items():
+        if hasattr(config, key):
+            setattr(config, key, value)
+
+    print(f"Parallel training configuration:")
+    print(f"  Batches: {batches}")
+    print(f"  Parallel environments: {config.num_parallel_envs}")
+    print(f"  Batch collection steps: {config.batch_collection_steps}")
+    print(f"  Total steps per batch: {config.num_parallel_envs * config.batch_collection_steps}")
+    print(f"  Batch size: {config.batch_size}")
+    print(f"  Learning rate: {config.learning_rate}")
+    print(f"  Memory size: {config.memory_size}")
+
+    # Initialize trainer
+    trainer = ParallelTwoNetworkTrainer(config)
+
+    print(f"\nNetwork Architecture:")
+    print(f"  Events network parameters: {sum(p.numel() for p in trainer.events_network.parameters()):,}")
+    print(f"  Combat network parameters: {sum(p.numel() for p in trainer.combat_network.parameters()):,}")
+    print(f"  Shared embedding parameters: {sum(p.numel() for module in trainer.shared_embeddings.get_modules().values() for p in module.parameters()):,}")
+
+    print(f"\nStarting parallel training...")
+
+    # Training with parallel environments
+    results = trainer.train_parallel_episodes(num_batches=batches)
+
+    # Final save
+    if save_path:
+        trainer.save_model(save_path)
+        print(f"\nFinal model saved to: {save_path}")
+
+    # Final statistics
+    print(f"\nParallel Training Results:")
+    print(f"  Total batches: {results['total_batches']}")
+    print(f"  Total experiences collected: {results['total_experiences']:,}")
+    print(f"  Total episodes completed: {results['total_episodes']:,}")
+    print(f"  Overall average reward: {results['overall_avg_reward']:.3f}")
+    print(f"  Total training time: {results['total_time']:.1f}s")
+    print(f"  Experiences per second: {results['experiences_per_second']:.1f}")
+    print(f"  Episodes per hour: {results['total_episodes'] / (results['total_time'] / 3600):.1f}")
+
+    # Cleanup
+    trainer.close()
+
+    print(f"\n✓ Parallel two-network training complete!")
+
+
 def evaluate_two_network_agent(model_path: str, episodes: int = 100):
     """Evaluate a trained two-network agent."""
     print(f"=== Evaluating Two-Network Agent ===\n")
@@ -332,6 +388,16 @@ def main():
     two_net_eval_parser = subparsers.add_parser('eval-two-net', help='Evaluate two-network architecture agent')
     two_net_eval_parser.add_argument('model', type=str, help='Path to two-network model file')
     two_net_eval_parser.add_argument('--episodes', type=int, default=100, help='Number of evaluation episodes')
+
+    # Parallel two-network training command
+    parallel_train_parser = subparsers.add_parser('train-parallel', help='Train two-network agent with parallel environments')
+    parallel_train_parser.add_argument('--batches', type=int, default=100, help='Number of training batches')
+    parallel_train_parser.add_argument('--save', type=str, help='Path to save trained model')
+    parallel_train_parser.add_argument('--num-envs', type=int, default=4, help='Number of parallel environments')
+    parallel_train_parser.add_argument('--batch-steps', type=int, default=256, help='Steps per environment per batch')
+    parallel_train_parser.add_argument('--batch-size', type=int, default=32, help='Training batch size')
+    parallel_train_parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
+    parallel_train_parser.add_argument('--memory-size', type=int, default=50000, help='Experience replay buffer size')
     
     args = parser.parse_args()
     
@@ -381,6 +447,22 @@ def main():
 
     elif args.command == 'eval-two-net':
         evaluate_two_network_agent(args.model, args.episodes)
+
+    elif args.command == 'train-parallel':
+        # Generate default save path if not provided
+        save_path = args.save
+        if save_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            save_path = f"sts_models/parallel_model_{timestamp}.pt"
+
+        train_kwargs = {
+            'num_parallel_envs': args.num_envs,
+            'batch_collection_steps': args.batch_steps,
+            'batch_size': args.batch_size,
+            'learning_rate': args.lr,
+            'memory_size': args.memory_size
+        }
+        train_two_network_parallel(args.batches, save_path, **train_kwargs)
 
     else:
         parser.print_help()
