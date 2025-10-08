@@ -251,7 +251,7 @@ class EventsNetworkTrainer:
         )
 
         # Calculate loss
-        target = torch.tensor(target_value, device=predicted_value.device)
+        target = torch.tensor(target_value, device=predicted_value.device, dtype=torch.float32)
         loss = self.loss_fn(predicted_value.squeeze(), target)
 
         # Backward pass
@@ -286,7 +286,7 @@ def extract_event_data_from_observation(observation: np.ndarray,
     event_type = 0  # Placeholder - would extract from screen state and observation
 
     return {
-        'event_type': torch.tensor(event_type),
+        'event_type': torch.tensor(event_type, dtype=torch.long),  # Categorical
         'choice_vectors': choice_tensor
     }
 

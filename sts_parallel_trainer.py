@@ -250,6 +250,10 @@ class ParallelTwoNetworkTrainer(TwoNetworkTrainer):
                 self.floor_num = data.get('floor', 0)
                 self.act = data.get('act', 1)
 
+                # Add placeholder deck and relics for shared embeddings
+                self.deck = []  # Empty deck placeholder
+                self.relics = []  # Empty relics placeholder
+
         return MockContext(context_data)
 
     def close(self):

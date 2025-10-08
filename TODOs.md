@@ -202,23 +202,11 @@
 
 ## Priority 4: Advanced Features (Post-Initial Training)
 
-### 4.1 Multi-Character Support
-- [ ] **Character-Specific Models**
-  - Separate heads for Ironclad/Silent/Defect/Watcher
-  - Character-specific action encodings
-  - Unique card and strategy embeddings
-  - Transfer learning between characters
-
-### 4.2 Meta-Learning and Adaptation
-- [ ] **Opponent Modeling** (for future multiplayer/mods)
+### 4.1 Meta-Learning and Adaptation
+- [ ] **Opponent Modeling** 
   - Monster behavior prediction
   - Boss pattern recognition
   - Adaptive difficulty scaling
-
-- [ ] **Few-Shot Learning**
-  - Quick adaptation to new cards/relics
-  - Mod support and custom content
-  - Dynamic strategy adjustment
 
 ## Priority 5: Production & Deployment
 

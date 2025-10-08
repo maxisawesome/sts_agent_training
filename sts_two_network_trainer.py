@@ -357,8 +357,16 @@ class TwoNetworkTrainer:
         # This would create a mock object with the necessary attributes
         class MockContext:
             def __init__(self, data):
-                for key, value in data.items():
-                    setattr(self, key, value)
+                # Map the stored names to the expected attribute names
+                self.cur_hp = data.get('hp', 80)
+                self.max_hp = data.get('max_hp', 80)
+                self.gold = data.get('gold', 99)
+                self.floor_num = data.get('floor', 0)
+                self.act = data.get('act', 1)
+
+                # Add placeholder deck and relics for shared embeddings
+                self.deck = []  # Empty deck placeholder
+                self.relics = []  # Empty relics placeholder
 
         return MockContext(context_data)
 

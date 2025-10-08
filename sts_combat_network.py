@@ -470,7 +470,7 @@ class CombatNetworkTrainer:
         policy_loss = self.policy_loss_fn(action_probs.unsqueeze(0), action_target.unsqueeze(0))
 
         # Value loss
-        target = torch.tensor(target_value, device=predicted_value.device)
+        target = torch.tensor(target_value, device=predicted_value.device, dtype=torch.float32)
         value_loss = self.value_loss_fn(predicted_value.squeeze(), target)
 
         # Combined loss

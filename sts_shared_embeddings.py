@@ -305,18 +305,18 @@ class SharedEmbeddingSystem:
         """Extract game state information from observation and context."""
         # Placeholder implementation - would extract from actual game state
         return {
-            'hp': torch.tensor(game_context.cur_hp),
-            'max_hp': torch.tensor(game_context.max_hp),
-            'gold': torch.tensor(game_context.gold),
-            'floor': torch.tensor(game_context.floor_num),
-            'ascension': torch.tensor(0),  # Would get from game context
-            'boss_type': torch.tensor(0),  # Would extract from observation
-            'potion_types': torch.tensor([0]),  # Would extract from observation
-            'previous_elite': torch.tensor(0),  # Would track from game history
-            'act': torch.tensor(game_context.act),
-            'events_seen_count': torch.tensor(0),  # Would track from game history
-            'events_seen': torch.zeros(60),  # Would track from game history
-            'map_state': torch.zeros(20)  # Would extract from game state
+            'hp': torch.tensor(game_context.cur_hp, dtype=torch.float32),
+            'max_hp': torch.tensor(game_context.max_hp, dtype=torch.float32),
+            'gold': torch.tensor(game_context.gold, dtype=torch.float32),
+            'floor': torch.tensor(game_context.floor_num, dtype=torch.float32),
+            'ascension': torch.tensor(0, dtype=torch.float32),  # Would get from game context
+            'boss_type': torch.tensor(0, dtype=torch.long),  # Categorical - use long
+            'potion_types': torch.tensor([0], dtype=torch.long),  # Categorical - use long
+            'previous_elite': torch.tensor(0, dtype=torch.long),  # Categorical - use long
+            'act': torch.tensor(game_context.act, dtype=torch.long),  # Categorical - use long
+            'events_seen_count': torch.tensor(0, dtype=torch.float32),  # Would track from game history
+            'events_seen': torch.zeros(60, dtype=torch.float32),  # Would track from game history
+            'map_state': torch.zeros(20, dtype=torch.float32)  # Would extract from game state
         }
 
     def _extract_deck_info(self, observation: np.ndarray, game_context: slaythespire.GameContext) -> Dict:
