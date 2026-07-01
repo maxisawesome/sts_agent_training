@@ -1,211 +1,86 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code working in this repository.
 
-## Development Commands
+## What this project is
 
-### Installation and Setup
+A **text-based environment over the `sts_lightspeed` C++ engine for driving an LLM agent**
+through Slay the Spire (Ironclad). It was originally a from-scratch RL project (PPO/DQN
+networks) but was repurposed: the network/training stack was deleted, and the valuable
+asset — the fast, RNG-accurate engine — is now wrapped in a clean env that an LLM plays.
+See the pivot plan at `~/.claude/plans/this-is-an-old-rosy-pillow.md` for the full story.
+
+## Build / install
+
+There is **no system `cmake`** on the dev machine; use the pip-provided one. pybind also
+grabs Homebrew Python 3.13 unless pinned — pin to the interpreter you'll run with.
+
 ```bash
-# Install package in editable mode (automatically builds sts_lightspeed)
-pip install -e .
-# Test the installation
-python3 -c "import slaythespire; print('✅ sts_lightspeed installed successfully!')"
-```
-
-### Manual C++ Build (if needed)
-```bash
+git submodule update --init --recursive
+pip install --user cmake                      # provides a cmake binary
+CMAKE=$(python3 -c "import cmake,os;print(os.path.join(os.path.dirname(cmake.__file__),'data','bin','cmake'))")
 cd sts_lightspeed
-# Clean previous builds
-rm -rf CMakeCache.txt CMakeFiles/
-# Configure (adjust Python path as needed)
-cmake -DPYTHON_EXECUTABLE=$(which python3) .
-# Build with parallel jobs
-make -j4
-# Test the build
-python3 -c "import slaythespire; print('✅ sts_lightspeed built successfully!')"
+"$CMAKE" -DPython_EXECUTABLE=$(which python3) -DPYBIND11_FINDPYTHON=ON .
+make -j4 slaythespire                         # builds slaythespire.cpython-*.so in this dir
+# make the module importable from anywhere:
+cp slaythespire*.so "$(python3 -c 'import site;print(site.getusersitepackages())')"/
 ```
 
-### Training and Evaluation
+Verify (combat MUST be exposed — `BattleContext` is what makes the game playable):
 ```bash
-# Quick test run (5 episodes, ~1 minute)
-python3 train_sts_agent.py train --episodes 5 --no-wandb
-
-# Full training with Weights & Biases tracking
-python3 train_sts_agent.py train --episodes 2000 --reward-function comprehensive --wandb
-
-# Evaluate a trained model
-python3 train_sts_agent.py eval sts_models/final_model.pt --games 100
-
-# Two-network training (single environment)
-python3 train_sts_agent.py train-two-net --episodes 1000
-
-# Two-network training (parallel environments - RECOMMENDED)
-python3 train_sts_agent.py train-parallel --batches 100 --num-envs 4
-
-# Evaluate two-network model
-python3 train_sts_agent.py eval-two-net sts_models/two_network_model.pt --episodes 100
-
-# List available models
-python3 train_sts_agent.py list
-
-# Interactive play session
-python3 train_sts_agent.py play --model sts_models/final_model.pt
+python3 -c "import slaythespire as s; print('BattleContext:', hasattr(s,'BattleContext'))"
 ```
 
-### Testing and Development
+`pip install -e .` builds the same extension via `setup.py`, but the custom build can be
+skipped under pip build isolation — the manual build above is the reliable path.
+
+## Run
+
 ```bash
-# Test the neural network interface
-python3 test_nn_interface.py
+python3 verify_combat.py                       # drive a real battle from Python (sanity)
+python3 verify_env.py [seed]                    # full run through the unified env (sanity)
 
-# Test basic functionality
-python3 test.py
-
-# Test Weights & Biases integration
-python3 test_wandb.py
-
-# Analyze reward functions
-python3 simple_reward_analysis.py
+python3 sts_agent.py                            # heuristic stub over default seeds
+python3 sts_agent.py --policy random 1 2 3
+python3 sts_agent.py --policy llm --verbose 1234            # needs ANTHROPIC_API_KEY
+python3 sts_agent.py --policy llm --model claude-sonnet-4-6 1234 5678   # cheaper for many seeds
 ```
 
-### Docker Commands
+Runs log to `runs/<policy>-<timestamp>/` (per-seed `.jsonl` transcripts + `summary.json`);
+`--no-log` to disable, `--log-dir` to relocate. A transcript is replayable: seed + the
+`action_id` sequence deterministically reproduces the game.
 
-**Quick Testing:**
-```bash
-# Test with cache (fast subsequent builds)
-./docker-scripts/test-docker.sh
+## Architecture
 
-# Quick build-only test (faster, no functionality tests)
-./docker-scripts/test-docker.sh --build-only
+- **`sts_lightspeed/`** — C++ engine (submodule). Out-of-combat play runs through
+  `GameContext`; combat runs in a separate `BattleContext`. Both, plus the combat-action
+  enumerator and serializers, are bound in `sts_lightspeed/bindings/slaythespire.cpp`
+  (the combat bindings + `get_screen_text`/`take_overworld_action` were added here — see
+  the binding file's comments).
+- **`sts_env.py`** — `StsEnv`: one `reset / observe / legal_actions / step / render` loop
+  spanning combat and overworld (auto-enters/exits battles). `observe()` reports only
+  observable state (draw-pile order is hidden). `render_observation(obs)` is the text an
+  LLM sees.
+- **`sts_agent.py`** — `Policy` protocol + `play_game()` + policies: `HeuristicPolicy`,
+  `RandomPolicy`, and `LlmPolicy` (Claude via forced tool use; stateless per step).
+  Run logging lives here.
+- **`verify_combat.py` / `verify_env.py`** — sanity scripts. **`baseline_run.md`** —
+  saved sample stub output (heuristic avg ~floor 9–11, random ~5; both 0 wins).
 
-# Force clean rebuild
-./docker-scripts/test-docker.sh --force-rebuild --no-cache
-```
+## Conventions / gotchas
 
-**Manual Building:**
-```bash
-# Build Docker image (with caching)
-docker build -t sts-neural-agent .
+- Combat loop in C++ terms: `BattleContext(); bc.init(gc)` → loop `get_battle_actions` →
+  `action.execute(bc)` until `bc.is_battle_over` → `bc.exit_battle(gc)`.
+- **Never call `get_screen_text` on a `BATTLE` screen** — `BattleSimulator::printActions`
+  dumps to stdout. `StsEnv._menu_available` guards this; preserve that guard.
+- Combat action descriptions are built in `sts_env._describe_battle_action` (plain
+  language). If you change that format, update any policy that string-matches it
+  (`HeuristicPolicy._combat` keys on `"play "` / `"Defend"` / `"Strike"`/`"Bash"`).
+- A new policy (e.g. a future fine-tuned model) is a drop-in: implement
+  `Policy.choose(observation) -> action_id`.
 
-# Run training in container
-docker run --gpus all -it sts-neural-agent
+## Dependencies
 
-# Use provided training script
-./docker-scripts/train.sh --episodes 1000 --wandb-name experiment
-```
-
-**Docker Cache Optimization:**
-- **First build**: Takes 10-15 minutes (downloads base image, builds C++)
-- **Subsequent builds**: 30 seconds - 2 minutes (uses cached layers)
-- **Python-only changes**: ~30 seconds (C++ layer cached)
-- **C++ changes**: 2-5 minutes (only rebuilds C++ and later layers)
-- **Dependency changes**: 5-10 minutes (rebuilds from dependency layer)
-
-## Architecture Overview
-
-### Core Components
-
-**sts_lightspeed/** - High-performance C++ simulation engine
-- Provides 100% RNG-accurate Slay the Spire simulation
-- Speed: 1M random playouts in 5s with 16 threads
-- Built with CMake, uses pybind11 for Python bindings
-- Includes all enemies, relics, Ironclad cards, and colorless cards
-
-**Neural Network Pipeline:**
-- `sts_neural_network.py` - Actor-critic architectures with 412-dimensional state space
-- `sts_training.py` - PPO (Proximal Policy Optimization) trainer implementation
-- `sts_data_collection.py` - Environment wrapper and experience collection
-- `sts_reward_functions.py` - Multiple reward function implementations
-- `train_sts_agent.py` - Main CLI interface for training/evaluation
-
-**Model Management:**
-- `sts_model_manager.py` - Model saving, loading, and metadata tracking
-- `sts_neural_agent.py` - Inference wrapper for trained agents
-- `sts_models/` - Directory containing trained model files
-
-### State Representation (412 dimensions)
-- Player HP (current/max), Gold, Floor number
-- Boss type (one-hot encoded, 10 bosses)  
-- Deck composition (220 features for card counts)
-- Relics (178 binary features)
-
-### Reward Functions
-- `simple` - Basic HP preservation (stable, limited learning)
-- `comprehensive` - Multi-factor reward (recommended)
-- `sparse` - Outcome-focused rewards
-- `shaped` - Expert heuristics guided
-
-### Dependencies
-- PyTorch 2.0+ for neural networks
-- Weights & Biases for experiment tracking
-- NumPy, matplotlib for analysis
-- CMake 3.10+ and C++17 compiler for building sts_lightspeed
-- pybind11 for Python-C++ bindings (automatically installed)
-
-## Key Files to Understand
-
-**Configuration and Setup:**
-- `requirements.txt` - Python dependencies
-- `sts_lightspeed/CMakeLists.txt` - C++ build configuration
-- `WANDB_SETUP.md` - Experiment tracking setup
-- `REWARD_SYSTEM.md` - Detailed reward function documentation
-
-**Training Artifacts:**
-- `training_config_*.json` - Saved training configurations
-- `wandb/` - Local experiment tracking data
-- Model files are saved to `sts_models/` directory with timestamps
-
-The system uses Docker for cloud deployment and includes comprehensive logging and model management for long-running experiments.
-
-## Installation Notes
-
-The project now uses proper Python packaging with `setup.py`. Simply run `pip install -e .` to:
-- Automatically build the sts_lightspeed C++ extension
-- Install all Python dependencies
-- Make the `slaythespire` module available globally
-- Enable console script commands like `sts-train`
-
-This eliminates the need for `sys.path.insert()` workarounds throughout the codebase.
-
-## Cloud Storage Setup
-
-For cloud deployments, data persistence is critical. The system includes automated setup for major cloud providers:
-
-**Quick Setup:**
-```bash
-# Auto-detect cloud provider and setup storage
-./scripts/setup-cloud-storage.sh
-
-# Provider-specific setup
-./scripts/setup-cloud-storage.sh --aws --size 100    # AWS EBS
-./scripts/setup-cloud-storage.sh --gcp --size 100    # GCP Persistent Disk
-./scripts/setup-cloud-storage.sh --azure --size 100  # Azure Managed Disk
-./scripts/setup-cloud-storage.sh --generic           # Generic directory
-```
-
-**Cloud Training:**
-```bash
-# Copy and configure environment
-cp .env.example .env
-# Edit .env with your WANDB_API_KEY and settings
-
-# Start cloud training with persistent storage
-./scripts/cloud-train.sh
-
-# Using Docker Compose for cloud
-docker-compose -f docker-compose.cloud.yml up sts-trainer
-```
-
-**Data Backup:**
-```bash
-# Manual backup to cloud storage
-./scripts/backup-data.sh
-
-# Automated backup (configure cloud credentials in .env)
-# Supports AWS S3, Google Cloud Storage, Azure Blob Storage
-```
-
-**Important Cloud Files:**
-- `docker-compose.cloud.yml` - Cloud-optimized container orchestration
-- `.env.example` - Template for cloud environment configuration
-- `CLOUD_STORAGE_GUIDE.md` - Detailed cloud setup documentation
-- `scripts/` - Automated setup and backup scripts
+`pybind11` + `cmake` (build), `anthropic` (the `LlmPolicy`), optional `wandb`. No torch.
+The model default is `claude-opus-4-8`; a full run is hundreds of calls, so
+`claude-sonnet-4-6` is much cheaper for batch eval.

@@ -121,18 +121,9 @@ setup(
     url="https://github.com/your-username/sts-neural-agent",
     packages=find_packages(),
     py_modules=[
-        "sts_neural_network",
-        "sts_training", 
-        "sts_data_collection",
-        "sts_reward_functions",
-        "sts_neural_agent",
-        "sts_model_manager",
-        "train_sts_agent",
+        "sts_env",
+        "sts_agent",
         "setup_wandb",
-        "test_nn_interface",
-        "test_wandb",
-        "analyze_rewards",
-        "simple_reward_analysis",
     ],
     cmdclass={
         "develop": PostDevelopCommand,
@@ -151,7 +142,6 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "sts-train=train_sts_agent:main",
             "sts-setup-wandb=setup_wandb:main",
         ],
     },

@@ -8,3 +8,5 @@ wandb/
 build/
 sts_neural_agent.egg-info/
 logs/
+# Run transcripts/logs
+runs/

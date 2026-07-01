@@ -1,24 +1,11 @@
-# STS Neural Agent - Python Dependencies
-# Core ML libraries
-torch>=2.0.0
-torchvision>=0.15.0
-torchaudio>=2.0.0
-numpy>=1.21.0
+# STS LLM Agent - Python Dependencies
 
-# Experiment tracking
-wandb>=0.15.0
-
-# Visualization and analysis
-matplotlib>=3.5.0
-seaborn>=0.11.0
-
-# Jupyter for interactive development (optional)
-jupyter>=1.0.0
-ipython>=8.0.0
-
-# Utilities
-tqdm>=4.60.0
-pyyaml>=6.0
-
-# Build dependencies
+# Build dependency for the sts_lightspeed C++ extension
 pybind11>=2.10.0
+cmake>=3.18
+
+# LLM agent (the policy that plays the game) — wired in when ready
+anthropic>=0.40.0
+
+# Optional: experiment tracking for evaluation runs
+wandb>=0.15.0
